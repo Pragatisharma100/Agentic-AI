@@ -4,7 +4,7 @@ BASE = "https://api.frankfurter.app"
 
 from_currency = "USD"
 to_currency = "INR"
-amount = 100
+amount = 150
 
 url = f"{BASE}/latest"
 

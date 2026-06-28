@@ -1,4 +1,4 @@
-# Agentic AI 3.0 by Pragati
+# Agentic AI
 
 A modern, direct path to mastering Agentic AI and GenAI with production-ready multi-agent systems on AWS, GCP, Azure, and VPS.
 
@@ -162,8 +162,5 @@ Nine practical portfolio projects across cloud platforms and local environments.
 
 ---
 
-
-
-Built by Pragati for a hands-on Agentic AI learning path.
 
 © 2026 Pragati

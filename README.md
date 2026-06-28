@@ -1,8 +1,6 @@
-# Agentic AI 3.0
+# Agentic AI
 
 A modern, direct path to mastering Agentic AI and GenAI with production-ready multi-agent systems on AWS, GCP, Azure, and VPS.
-
-> Beginner+ · ~6 hrs/week · Python & AI fast-track in Phase 0
 
 ---
 
@@ -162,8 +160,6 @@ Nine practical portfolio projects across cloud platforms and local environments.
 
 ---
 
-## About
 
-Built for learners who want a clear, practical path into Agentic AI and GenAI production systems. The course is inspired by Krish Naik Academy and focuses on real tools, cloud deployment, and agent orchestration.
 
 © 2026 Agentic AI 3.0

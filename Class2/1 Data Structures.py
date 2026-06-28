@@ -1,10 +1,10 @@
 """
-_1_data_structures.py
+1 Data Structures.py
 
 Lists, dictionaries, tuples, and the combination that matters most
 later: a list of dictionaries. Still zero mention of AI or agents.
 
-Run with: uv run _1_data_structures.py
+Run with: uv run "1 Data Structures.py"
 """
 
 # --- Lists: an ordered, changeable collection ---

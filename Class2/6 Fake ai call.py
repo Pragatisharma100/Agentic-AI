@@ -1,11 +1,11 @@
 """
-_6_fake_ai_call.py
+6 Fake ai call.py
 
 The first mention of AI in today's class. A zero-dependency stand-in,
 shaped exactly like the real thing -- so the next file (a real, free
 model) feels familiar instead of intimidating.
 
-Run with: uv run _6_fake_ai_call.py
+Run with: uv run "6 Fake ai call.py"
 """
 
 from __future__ import annotations

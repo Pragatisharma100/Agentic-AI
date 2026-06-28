@@ -1,12 +1,12 @@
 """
-_2_oop_classes.py
+2 OOP.py
 
 Classes, taught clean -- no Agent in sight. Class 1 only ever showed
 you a class wearing an "Agent" costume; this file is the bare pattern,
 on its own, so it actually generalizes instead of feeling like
 something you can only use for AI.
 
-Run with: uv run _2_oop_classes.py
+Run with: uv run "2 OOP.py"
 """
 
 # --- A class is a blueprint. An instance is one specific thing built from it. ---
@@ -36,8 +36,8 @@ class BankAccount:
 
 
 # Build TWO separate accounts from the same blueprint -- each has its own state.
-account_1 = BankAccount(owner="Mayank", balance=1000)
-account_2 = BankAccount(owner="Krish", balance=500)
+account_1 = BankAccount(owner="Pragati", balance=1000)
+account_2 = BankAccount(owner="Pragati", balance=500)
 
 account_1.deposit(200)
 account_1.withdraw(50)

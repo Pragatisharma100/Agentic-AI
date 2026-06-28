@@ -1,10 +1,10 @@
 """
-_3_error_handling.py
+3 Error Handling.py
 
 try/except -- catching a problem on purpose instead of letting it crash
 your entire program. Still no AI, no agents.
 
-Run with: uv run _3_error_handling.py
+Run with: uv run "3 Error Handling.py"
 """
 
 # --- Without error handling, ANY unexpected problem stops everything. ---

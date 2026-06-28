@@ -1,12 +1,12 @@
 """
-_0_basics_refresher.py
+0 Basics_Python.py
 
 A quick brush-up, nothing new. Variables, types, f-strings, control
 flow -- exactly what Class 1 covered. No mention of AI or agents
 anywhere in this file, and none in the next four files either. These
 are just Python skills, worth knowing on their own merit.
 
-Run with: uv run _0_basics_refresher.py
+Run with: uv run "0 Basics_Python.py"
 """
 
 # --- Variables and data types ---

@@ -1,69 +1,56 @@
-# Class 2 — Pydantic — Expanded Starter Codebase
-**15 standalone files, basics through a memory-holding, multi-tool agent.**
-**Real currency API (free). Real LLM via Groq and/or OpenRouter (free). OpenAI shown, not required.**
+# Class 2 — Actual file list and simple summaries
 
-Agentic AI 3.0 · Phase 0 · Class 2 of 4
+This folder has only the actual Class 2 files. The previous README listed files that do not exist in this folder.
 
-## Files, in teaching order
+## Files and short summaries
 
-| File | Covers | Agent/AI mentioned? |
-|---|---|---|
-| `_0_basics_refresher.py` | Quick Class 1 recap | No |
-| `_1_data_structures.py` | Lists, dicts, tuples, list-of-dicts | No |
-| `_2_oop_classes.py` | Classes — BankAccount, Book (no Agent) | No |
-| `_3_error_handling.py` | try/except, multiple patterns | No |
-| `_4_decorators.py` | The wrapper pattern, generic | No |
-| `_5_calling_a_real_api.py` | `requests`, real currency conversion | First real API, no AI |
-| `_6_fake_ai_call.py` | The OpenAI-style shape, zero dependency | First AI mention |
-| `_7_ai_call_free_and_paid.py` | Groq, OpenRouter (free), OpenAI (paid, shown not required) | Yes |
-| `_8_pydantic_with_ai.py` | **Main topic.** BaseModel, Field, validators, nested models, validating LLM output | Yes |
-| `_9_api_call_with_structure.py` | File 5's API call, now Pydantic-validated | No new AI, just structure |
-| `_10_tool_with_ai_call.py` | Validated tool + AI call, side by side, decorator applied for real | Yes |
-| `_11_agent_class_ai_only.py` | Agent via OOP (File 2's pattern), brain only | Yes |
-| `_12_agent_with_one_tool.py` | Same agent, + the currency tool | Yes |
-| `_13_agent_with_more_tools.py` | + weather, + calculator (3 tools total) | Yes |
-| `_14_agent_with_memory.py` | Memory named explicitly + everything combined | Yes |
+- [`0 Basics_Python.py`](./0%20Basics_Python.py) — Python basics: variables, types, strings, and control flow.
+- [`1 Data Structures.py`](./1%20Data%20Structures.py) — lists, dictionaries, tuples, and loops.
+- [`2 OOP.py`](./2%20OOP.py) — classes and objects.
+- [`3 Error Handling.py`](./3%20Error%20Handling.py) — try/except examples.
+- [`4 Decorators.py`](./4%20Decorators.py) — how decorators work.
+- [`5 Calling real api.py`](./5%20Calling%20real%20api.py) — real API call with `requests`.
+- [`6 Fake ai call.py`](./6%20Fake%20ai%20call.py) — fake AI-style function.
+- [`7 Ai_call_free_and_paid.py`](./7%20Ai_call_free_and_paid.py) — AI provider examples.
+- [`8 Pydantic with ai.py`](./8%20Pydantic%20with%20ai.py) — Pydantic validation.
+- [`9 Api call with structure.py`](./9%20Api%20call%20with%20structure.py) — API call with Pydantic.
 
-Numbering uses a leading underscore (`_0_`, `_1_`...) — same reason as before: Python can't `import` a file starting with a bare digit, but a leading underscore sorts and reads the same way while staying importable.
+## Why there was an error
 
-**Every file is self-contained and runnable on its own** — none of them require running the others first, even though later files reuse earlier patterns by re-declaring them (not importing across the whole chain), so you can hand any single file to a student without the rest.
+The README previously mentioned files named `10 Tool_with_ai_call.py` through `14 Agent_with_memory.py`. Those files do not exist in this folder, so the README was wrong. This file now matches the folder contents exactly.
+
+## How to open a file
+
+Click any linked file name above in the README to open it in VS Code.
+
+## How to run a file
+
+Use `uv run` with quotes around names that have spaces:
+
+```bash
+uv run "0 Basics_Python.py"
+uv run "8 Pydantic with ai.py"
+uv run "9 Api call with structure.py"
+```
 
 ## Setup
 
-You already have `uv` from Class 1.
+Install the required packages:
+
 ```bash
 uv add requests pydantic python-dotenv
 ```
-Optional, for real AI calls (every file falls back automatically without this):
+
+If you also want AI provider support:
+
 ```bash
 uv add openai
-cp .env.example .env   # paste a free Groq and/or OpenRouter key in
 ```
 
-## Run things in this order
+Copy the example environment file:
 
 ```bash
-uv run _0_basics_refresher.py
-uv run _1_data_structures.py
-uv run _2_oop_classes.py
-uv run _3_error_handling.py
-uv run _4_decorators.py
-uv run _5_calling_a_real_api.py
-uv run _6_fake_ai_call.py
-uv run _7_ai_call_free_and_paid.py
-uv run _8_pydantic_with_ai.py
-uv run _9_api_call_with_structure.py
-uv run _10_tool_with_ai_call.py
-uv run _11_agent_class_ai_only.py
-uv run _12_agent_with_one_tool.py
-uv run _13_agent_with_more_tools.py
-uv run _14_agent_with_memory.py
+copy .env.example .env
 ```
 
-## A note on testing
-
-Files `_5`, `_7`, `_9`, `_10`, `_12`, `_13`, `_14` make real network calls (Frankfurter and/or Groq/OpenRouter). Every line of request-building, response-parsing, and Pydantic validation was tested — including every failure path (bad input, missing key, network timeout) — using mocked responses that match each provider's exact documented response shape. The live calls themselves need a real internet connection to complete; this build environment's network policy blocks those specific domains directly, so budget a few minutes before class to run each once for real.
-
-## The one rule for this folder
-
-If you can't point to which earlier file taught a pattern reused later, that pattern doesn't belong here yet.
+Then add your provider key to `.env` if needed.

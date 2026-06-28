@@ -1,5 +1,5 @@
 """
-_8_pydantic_with_ai.py
+8 Pydantic with ai.py
 
 The headline topic. Pydantic's job: take data you don't fully trust
 (an LLM's text output, especially) and turn it into data you DO trust
@@ -7,7 +7,7 @@ The headline topic. Pydantic's job: take data you don't fully trust
 you expected.
 
 Setup: `uv add pydantic`
-Run with: uv run _8_pydantic_with_ai.py
+Run with: uv run "8 Pydantic with ai.py"
 """
 
 from pydantic import BaseModel, Field, field_validator, ValidationError

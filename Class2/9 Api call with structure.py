@@ -1,12 +1,12 @@
 """
-_9_api_call_with_structure.py
+9 Api call with structure.py
 
 File 5's convert_currency function, revisited. Same real API call --
 nothing about the API itself changes. What's new: its ARGUMENTS now go
 through Pydantic before the function ever runs. This is the moment
 "Pydantic" and "API call" stop being two separate lessons.
 
-Run with: uv run _9_api_call_with_structure.py
+Run with: uv run "9 Api call with structure.py"
 """
 
 import requests

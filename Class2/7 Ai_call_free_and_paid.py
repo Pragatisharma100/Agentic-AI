@@ -1,5 +1,5 @@
 """
-_7_ai_call_free_and_paid.py
+7 Ai_call_free_and_paid.py
 
 The real version of File 6. Same shape every time -- only the client
 setup changes. Three providers, in order from "definitely free" to
@@ -14,7 +14,7 @@ setup changes. Three providers, in order from "definitely free" to
 Setup: `uv add openai python-dotenv`
        .env: GROQ_API_KEY=... and/or OPENROUTER_API_KEY=...
 
-Run with: uv run _7_ai_call_free_and_paid.py
+Run with: uv run "7 Ai_call_free_and_paid.py"
 """
 
 import os

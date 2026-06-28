@@ -1,11 +1,11 @@
 """
-_4_decorators.py
+4 Decorators.py
 
 A decorator is a gift wrapper: the function inside doesn't change, but
 the wrapper adds something extra every time the function gets called.
 Last topic before we touch the outside world -- still no AI, no agents.
 
-Run with: uv run _4_decorators.py
+Run with: uv run "4 Decorators.py"
 """
 
 import functools
@@ -30,7 +30,7 @@ def greet(name):
     return f"Hello, {name}!"
 
 
-print(greet("Mayank"))
+print(greet("Pragati"))  # example uses Pragati as the learner name
 
 
 def timed(func):
@@ -64,7 +64,7 @@ def slow_greeting(name):
     return f"Hello there, {name}!"
 
 
-print(slow_greeting("Krish"))
+print(slow_greeting("Pragati"))  # example uses Pragati as the learner name
 
 
 if __name__ == "__main__":

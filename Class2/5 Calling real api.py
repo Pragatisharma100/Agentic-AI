@@ -1,12 +1,12 @@
 """
-_5_calling_a_real_api.py
+5 Calling real api.py
 
 How Python talks to a service running somewhere else on the internet.
 Today's example: Frankfurter (api.frankfurter.dev), real currency
 conversion, free, no key, no signup, ever.
 
 Setup: `uv add requests`
-Run with: uv run _5_calling_a_real_api.py
+Run with: uv run "5 Calling real api.py"
 """
 
 import requests

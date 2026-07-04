@@ -15,9 +15,6 @@ This folder has only the actual Class 2 files. The previous README listed files 
 - [`8 Pydantic with ai.py`](./8%20Pydantic%20with%20ai.py) — Pydantic validation.
 - [`9 Api call with structure.py`](./9%20Api%20call%20with%20structure.py) — API call with Pydantic.
 
-## Why there was an error
-
-The README previously mentioned files named `10 Tool_with_ai_call.py` through `14 Agent_with_memory.py`. Those files do not exist in this folder, so the README was wrong. This file now matches the folder contents exactly.
 
 ## How to open a file
 

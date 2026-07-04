@@ -9,16 +9,6 @@ def get_current_time() -> str:
 
 print(get_current_time())
 
-
-
-
-
-
-
-
-
-
-
 fake_weather_data = {
         "tokyo": "22°C, partly cloudy",
         "delhi": "34°C, clear skies",

@@ -9,3 +9,8 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "pydantic[email]>=2.13.4",
 ]
+
+[tool.uv.workspace]
+members = [
+    "Class6",
+]

@@ -2,33 +2,50 @@
 
 ## Overview
 
-This class demonstrates a simple LangChain agent setup using a local tool function and the `create_agent` API. The notebook `setup_check.ipynb` verifies that the OpenAI API key is loaded correctly and that the agent can invoke a tool.
+This module lives in `Class7-Langchain` and includes:
+- `setup_check.ipynb` — environment and agent setup validation
+- `04_05_prompt_templates_structured_output_student_notes.ipynb` — prompt templates and structured output
+- `shortnotes.py` — concise class notes and reminders
 
-## Files
+## What this class teaches
 
-- `setup_check.ipynb`: Jupyter notebook used for environment validation and agent setup.
+- How to load environment variables safely with `python-dotenv`
+- How to create a simple LangChain agent using `create_agent`
+- How to define reusable prompt templates with `ChatPromptTemplate`
+- How to enforce structured model output with `with_structured_output()`
+- The difference between `ProviderStrategy` and `ToolStrategy`
+- Why `.gitignore` is required for sensitive files like `.env`
 
 ## Requirements
 
 - Python 3.10+
-- `python-dotenv`
 - `langchain`
-- OpenAI API key set in `.env` as `OPENAI_API_KEY`
+- `langchain-openai`
+- `python-dotenv`
+- `pydantic`
 
 ## Setup
 
 1. Install dependencies:
-   - `pip install python-dotenv langchain`
-2. Create a `.env` file in the project root:
+   - `pip install langchain langchain-openai python-dotenv pydantic`
+2. Create a `.env` file in the project folder:
    - `OPENAI_API_KEY=your_openai_api_key`
+3. Confirm `.env` is listed in `.gitignore`
 
 ## Usage
 
-- Run `setup_check.ipynb` in Jupyter or VS Code.
-- The notebook loads environment variables and prints a sample weather response from the agent.
+- Open `setup_check.ipynb` and run the cells to verify the environment and agent.
+- Open `04_05_prompt_templates_structured_output_student_notes.ipynb` and run the notebook to learn prompt templates and structured output.
 
 ## Notes
 
-- The `get_weather` tool is a placeholder function.
-- The agent configuration uses `model="openai:gpt-5.5"` and a system prompt to define behavior.
-- Confirm the API key is loaded correctly before invoking the agent.
+- `setup_check.ipynb` uses a placeholder tool `get_weather(city: str)` to demonstrate tool binding.
+- `04_05_prompt_templates_structured_output_student_notes.ipynb` shows how to:
+  - build prompt templates with `{variable}` placeholders
+  - chain prompts into a model with `|`
+  - convert model output into a validated Pydantic object
+- `.gitignore` prevents new sensitive files from being tracked, but it does not remove files already committed.
+- If a sensitive file was committed, use:
+  - `git rm --cached path/to/file`
+  - commit the change
+- Keep API keys private and do not commit `.env`.

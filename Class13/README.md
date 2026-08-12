@@ -1,7 +1,4 @@
-# LangChain Middleware — Consolidated Notes
-
-**Course:** Agentic AI 3.0 Specialization | Krish Naik Academy
-**Mentor:** Mayank Aggarwal
+# LangChain Middleware
 **Sessions covered:** Class 12 ("Mastering Middleware: Control, Guardrails & Human-in-the-Loop") + Class 13 built-in middleware reference
 
 > This version merges the two source documents, removes duplicated explanations/code blocks, and fills in the built-in middleware types that were only present in one of the two sources.
@@ -514,10 +511,8 @@ For most simple agents — even something like an enterprise RAG chatbot handlin
 
 ## 11. Additional Resources
 
-- [Middleware documentation](/oss/python/langchain/middleware) — complete guide to custom middleware
 - [Middleware API reference](https://reference.langchain.com/python/langchain/middleware/)
-- [Human-in-the-loop guide](/oss/python/langchain/human-in-the-loop)
-- [Testing agents](/oss/python/langchain/test/) — strategies for testing safety mechanisms
+
 
 ---
 

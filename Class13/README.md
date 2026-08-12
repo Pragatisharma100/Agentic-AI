@@ -3,7 +3,6 @@
 **Course:** Agentic AI 3.0 Specialization | Krish Naik Academy
 **Mentor:** Mayank Aggarwal
 **Sessions covered:** Class 12 ("Mastering Middleware: Control, Guardrails & Human-in-the-Loop") + Class 13 built-in middleware reference
-**Notebook:** https://colab.research.google.com/drive/1Qt9uU2HhDvtFTWwbbFBYxK86jJypv1w_?usp=sharing
 
 > This version merges the two source documents, removes duplicated explanations/code blocks, and fills in the built-in middleware types that were only present in one of the two sources.
 

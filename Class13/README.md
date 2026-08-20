@@ -1,528 +1,1858 @@
-# LangChain Middleware
-**Sessions covered:** Class 12 ("Mastering Middleware: Control, Guardrails & Human-in-the-Loop") + Class 13 built-in middleware reference
+# 🐚 Class 14 — Shell Tools & Custom Middleware
 
-> This version merges the two source documents, removes duplicated explanations/code blocks, and fills in the built-in middleware types that were only present in one of the two sources.
+## 📌 Overview
 
----
+Class 14 focuses on **Shell Tool Middleware** and **Custom Middleware** in LangChain agents.
 
-## 1. Why Middleware Exists
+The session covers how AI agents can interact with real file systems and terminals, how middleware intercepts agent execution, the six major middleware hooks, decorator-based and class-based middleware, state management, execution order, dynamic model selection, dynamic tool selection, retries, tracing, and production-oriented middleware design.
 
-Middleware lets you intercept and modify agent execution at defined points instead of hoping the model behaves correctly on its own. Motivating example: nothing stops an agent from replying rudely if provoked, and nothing automatically flags personal information handed to it — the agent already has everything it needs (model, tools, prompts, messages), but developers still need a way to intervene *between* those components.
-
-**Six hook points around the agent loop:**
-1. Before the agent runs
-2. After the agent runs
-3. Before the model is called
-4. After the model is called
-5. Before a tool is called
-6. After a tool is called
-
-This concept isn't LangChain-specific — Google's Agent Development Kit calls the same idea a "callback." It maps to something every developer already does in regular code: deciding what happens before/after a given action. Middleware just applies that pattern formally to an agent's execution flow.
-
-**Reliability note (from Q&A):** telling a model "don't call this tool more than twice" in a prompt is not reliable — models can ignore it, and it breaks if you swap models. Enforcing limits in code (via middleware) is deterministic in a way prompt instructions never are.
+The practical goal is to understand how frameworks such as Claude Code, Cursor, and GitHub Copilot combine an LLM with controlled access to a real execution environment.
 
 ---
 
-## 2. Built-in Middleware Reference
+## 🎯 Learning Objectives
 
-### 2.1 Summarization Middleware
-**Purpose:** Compress conversation history to manage token usage/cost as a conversation grows.
+By the end of this class, you should understand:
+
+* How `ShellToolMiddleware` gives an agent shell access
+* Where shell commands actually execute
+* How workspace isolation works
+* Host vs Docker-based execution policies
+* What custom middleware is and why it is needed
+* Node-style vs wrap-style hooks
+* All six major middleware hooks
+* `before_agent`
+* `before_model`
+* `wrap_model_call`
+* `after_model`
+* `wrap_tool_call`
+* `after_agent`
+* Decorator-based middleware
+* Class-based middleware
+* Custom agent state
+* State updates using reducers
+* `Command` and `ExtendedModelResponse`
+* Middleware execution order
+* Agent jumps
+* Dynamic model selection
+* Dynamic prompt modification
+* Dynamic tool selection
+* Tool-call monitoring
+* Middleware inheritance
+* Error handling and retry logic
+* Middleware tracing
+* Production best practices
+
+---
+
+# 🐚 1. Shell Tool Middleware
+
+One of the most important demonstrations of the session was connecting an agent to a real shell.
+
+Coding agents such as Claude Code, Cursor, and GitHub Copilot fundamentally need access to an execution environment to:
+
+* Create files
+* Read files
+* Modify files
+* Delete files
+* Execute scripts
+* Run commands
+* Build applications
+* Test code
+
+The LLM decides **what should happen**, while the shell environment performs the actual operation.
+
+---
+
+## Basic Shell Middleware
 
 ```python
 from langchain.agents import create_agent
-from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents.middleware import (
+    ShellToolMiddleware,
+    HostExecutionPolicy,
+)
 
-agent = create_agent(
+cinebot_shell_agent = create_agent(
     model=model,
-    tools=[...],
+    tools=[],
     middleware=[
-        SummarizationMiddleware(
-            model="anthropic:claude-haiku",   # can be a cheaper model — summarizing is its own task
-            trigger=("tokens", 4000),          # or message count, or % of context window (e.g. 80% full)
-            keep=("messages", 10),             # fraction, token count, or message count to leave untouched
-        )
+        ShellToolMiddleware(
+            workspace_root="/content/cinebot_workspace",
+            execution_policy=HostExecutionPolicy(),
+        ),
     ],
 )
 ```
 
-**Key points:**
-- `model` — doesn't need to match the main agent model; a cheaper model works fine.
-- `trigger` — absolute token count, message count, or fraction of the model's context window.
-- `keep` — how much recent conversation stays untouched (multimodal content included) after older messages are folded into a summary.
-- Runs against its **own separate context**, not the agent's main running context.
-- Does **not** downsample images/audio — store media separately and reference by URL.
-- This is the same mechanism behind Claude Code's `/compact` and the "conversation has been compacted" behavior in long chats.
-- **Trade-off:** summarization can genuinely lose information, which is part of why long conversations sometimes "forget" things or hallucinate. There's no guaranteed zero-loss summary — if something must be retained exactly, save it to long-term memory separately rather than relying on the summary.
+---
 
-### 2.2 Human-in-the-Loop (HITL) Middleware
-**Purpose:** Pause execution so a human can approve, edit, reject, or respond to a proposed tool call before it runs.
+## 🧠 Where Does the Agent Execute?
 
-**Why it only applies to tool calls:** everything before a tool call is just the model reasoning; the tool call is the "hands" — the moment the agent actually changes something in the real world. That's the point worth pausing on.
+If the agent is running inside Google Colab:
+
+```text
+LLM
+ │
+ │ Decides which command to execute
+ ▼
+Agent
+ │
+ │ Shell tool call
+ ▼
+Google Colab Machine
+ │
+ ├── Create files
+ ├── Modify files
+ ├── Execute scripts
+ └── Delete files
+```
+
+The model provider supplies the **reasoning capability**.
+
+The actual command executes on the machine where the agent is running.
+
+For example:
 
 ```python
-from langchain.agents.middleware import HumanInTheLoopMiddleware
-from langgraph.checkpoint.memory import InMemorySaver
+workspace_root="/content/cinebot_workspace"
+```
+
+restricts the agent's file operations to that workspace.
+
+---
+
+# 🔐 2. Execution Policies
+
+| Policy                  | Purpose                                      |
+| ----------------------- | -------------------------------------------- |
+| `HostExecutionPolicy()` | Direct access to the host machine            |
+| Docker-based policy     | Runs operations inside an isolated container |
+| Codex sandbox policy    | Uses an existing Codex CLI sandbox           |
+
+For trusted development environments:
+
+```python
+HostExecutionPolicy()
+```
+
+can be appropriate.
+
+For production or untrusted workloads, isolation is significantly safer.
+
+---
+
+# 🧪 3. Shell Agent Examples
+
+The shell agent can perform tasks such as:
+
+```text
+Create a reports folder
+```
+
+```text
+Research the NBA and save it to nba_research.txt
+```
+
+```text
+Create Hello_world.py
+```
+
+```text
+Create two folders, execute a script, and delete it
+```
+
+```text
+Create and run a calculator application
+```
+
+The execution pattern is:
+
+```text
+User Request
+     ↓
+LLM
+     ↓
+Tool Call
+     ↓
+Shell Command
+     ↓
+Real File/System Operation
+     ↓
+Tool Result
+     ↓
+LLM
+     ↓
+Final Response
+```
+
+---
+
+# 🪝 4. What Is Custom Middleware?
+
+Built-in middleware handles generic requirements such as:
+
+* Human-in-the-loop
+* PII protection
+* Tool-call limits
+* Other common agent controls
+
+But businesses often have application-specific rules.
+
+For example:
+
+```text
+A customer cannot book more than two movies
+```
+
+```text
+The agent must not mention competing cinema chains
+```
+
+```text
+Every cancellation must be logged
+```
+
+```text
+VIP tools should only be visible to VIP users
+```
+
+These rules are application-specific.
+
+That is where **custom middleware** becomes useful.
+
+---
+
+# 🧩 5. Middleware Hooks
+
+Middleware provides extension points where custom logic can intercept agent execution.
+
+There are two major categories:
+
+### Node-style hooks
+
+Run sequentially at specific execution points.
+
+### Wrap-style hooks
+
+Wrap model or tool calls and provide direct control over execution.
+
+---
+
+## Six Major Hooks
+
+| Hook              | Execution                  |
+| ----------------- | -------------------------- |
+| `before_agent`    | Before the agent starts    |
+| `before_model`    | Before every model call    |
+| `wrap_model_call` | Around every model call    |
+| `after_model`     | After every model response |
+| `wrap_tool_call`  | Around every tool call     |
+| `after_agent`     | After the agent completes  |
+
+---
+
+# 🔄 6. Agent Execution Lifecycle
+
+```text
+User Request
+     │
+     ▼
+before_agent
+     │
+     ▼
+before_model
+     │
+     ▼
+wrap_model_call
+     │
+     ▼
+     Model
+     │
+     ▼
+after_model
+     │
+     ▼
+wrap_tool_call
+     │
+     ▼
+     Tool
+     │
+     └──────────────┐
+                    │
+                    ▼
+              before_model
+                    │
+                    ▼
+              Agentic Loop
+                    │
+                    ▼
+               after_agent
+```
+
+---
+
+# 🟡 7. `before_agent`
+
+Runs once at the beginning of an agent invocation.
+
+Useful for:
+
+* Initialization
+* Database connections
+* Loading resources
+* Initial validation
+* Setup logic
+
+```python
+from langchain.agents.middleware import before_agent
+from langchain.agents import AgentState
+from langgraph.runtime import Runtime
+from typing import Any
+
+@before_agent
+def connect_to_db(
+    state: AgentState,
+    runtime: Runtime,
+) -> dict[str, Any] | None:
+
+    print("Connected to DB")
+
+    return None
+```
+
+---
+
+# 🔵 8. `after_agent`
+
+Runs once after the agent finishes.
+
+Useful for:
+
+* Cleanup
+* Closing connections
+* Final logging
+* Resource release
+
+```python
+from langchain.agents.middleware import after_agent
+
+@after_agent
+def disconnect_from_db(
+    state: AgentState,
+    runtime: Runtime,
+) -> dict[str, Any] | None:
+
+    print("Disconnected from DB")
+
+    return None
+```
+
+---
+
+# 🟠 9. `before_model`
+
+Runs before every model call.
+
+Useful for:
+
+* Logging
+* Validation
+* State inspection
+* Preparing model context
+* Security checks
+
+```python
+from langchain.agents.middleware import before_model
+from langchain.agents import AgentState
+from langgraph.runtime import Runtime
+from typing import Any
+
+@before_model
+def log_before_model(
+    state: AgentState,
+    runtime: Runtime,
+) -> dict[str, Any] | None:
+
+    print(
+        f"About to call model with "
+        f"{len(state['messages'])} messages"
+    )
+
+    return None
+```
+
+Returning:
+
+```python
+None
+```
+
+means:
+
+```text
+Observe the execution
+but do not modify anything.
+```
+
+---
+
+# 🔴 10. `after_model`
+
+Runs after every model response.
+
+Useful for:
+
+* Logging responses
+* Validation
+* Output inspection
+* State updates
+* Safety checks
+
+```python
+from langchain.agents.middleware import after_model
+
+@after_model
+def log_response(
+    state: AgentState,
+    runtime: Runtime,
+) -> dict[str, Any] | None:
+
+    print(
+        f"Model returned: "
+        f"{state['messages'][-1].content}"
+    )
+
+    return None
+```
+
+---
+
+# 🟣 11. `wrap_model_call`
+
+`wrap_model_call` provides direct control over the model request.
+
+It can be used for:
+
+* Dynamic model selection
+* Retries
+* Fallbacks
+* Caching
+* Prompt transformation
+* Tool filtering
+* Model configuration changes
+
+```python
+from langchain.agents.middleware import (
+    wrap_model_call,
+    ModelRequest,
+    ModelResponse,
+)
+from typing import Callable
+
+@wrap_model_call
+def retry_model(
+    request: ModelRequest,
+    handler: Callable[[ModelRequest], ModelResponse],
+) -> ModelResponse:
+
+    for attempt in range(3):
+
+        try:
+            return handler(request)
+
+        except Exception as e:
+
+            if attempt == 2:
+                raise
+
+            print(
+                f"Retry {attempt + 1}/3 after error: {e}"
+            )
+```
+
+---
+
+# 🛠️ 12. `wrap_tool_call`
+
+Wraps tool execution.
+
+Useful for:
+
+* Tool monitoring
+* Logging
+* Validation
+* Error handling
+* Permission checks
+* Tool result transformation
+
+```python
+from collections.abc import Callable
+from langchain.agents.middleware import wrap_tool_call
+from langchain.messages import ToolMessage
+from langchain.tools.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-agent = create_agent(
-    model=model,
-    tools=[read_email, send_email, cancel_booking],
-    checkpointer=InMemorySaver(),  # REQUIRED for HITL
-    middleware=[
-        HumanInTheLoopMiddleware(
-            interrupt_on={
-                "send_email": {"allowed_decisions": ["approve", "edit", "reject", "respond"]},
-                "cancel_booking": {"allowed_decisions": ["approve", "edit", "reject", "respond"]},
-                "read_email": False,  # auto-approved, no interrupt
-            }
-        ),
+@wrap_tool_call
+def monitor_tool(
+    request: ToolCallRequest,
+    handler: Callable[
+        [ToolCallRequest],
+        ToolMessage | Command,
     ],
-)
+) -> ToolMessage | Command:
 
-config = {"configurable": {"thread_id": "hitl-demo"}}
-result = agent.invoke(
-    {"messages": [{"role": "user", "content": "Send an email to my manager saying I won't be in tomorrow."}]},
-    config=config,
-)
+    print(
+        f"Executing tool: "
+        f"{request.tool_call['name']}"
+    )
 
-# Resume later with a decision, using the SAME thread_id:
-result = agent.invoke(Command(resume={"decisions": [{"type": "approve"}]}), config=config)
-# or
-result = agent.invoke(Command(resume={"decisions": [{"type": "reject", "message": "Not authorized"}]}), config=config)
-```
+    print(
+        f"Arguments: "
+        f"{request.tool_call['args']}"
+    )
 
-**Decision types:** `approve` (run as proposed) · `edit` (modify args first) · `reject` (block, send reason to agent) · `respond` (answer instead of executing).
+    try:
+        result = handler(request)
 
-LangChain doesn't ship a UI for resolving interrupts — resume programmatically via `Command(resume=...)` or wire it into a custom approve/reject interface.
+        print("Tool completed successfully")
 
-**Common mix-up:** a support chatbot escalating to a human agent is **not** HITL — that's a *transfer*, where the agent hands off the whole conversation and steps out. True HITL keeps the agent in the loop, just paused for one decision (e.g., agent proposes a refund amount, human approves/adjusts it, agent continues).
+        return result
 
-### 2.3 Model Call Limit Middleware
-**Purpose:** Cap total model calls to control cost and prevent infinite loops. (Same idea as a raw-Python `max_turns` safeguard, formalized with framework-level checks.)
-
-```python
-from langchain.agents.middleware import ModelCallLimitMiddleware
-
-agent = create_agent(
-    model=model,
-    tools=your_tools,
-    checkpointer=InMemorySaver(),   # required for thread_limit
-    middleware=[
-        ModelCallLimitMiddleware(
-            thread_limit=5,        # max calls across the whole conversation
-            run_limit=2,           # max calls per single .invoke()
-            exit_behavior="end",   # graceful stop (or "exception")
-        ),
-    ],
-)
-```
-
-### 2.4 Tool Call Limit Middleware
-**Purpose:** Cap tool execution, especially irreversible operations — e.g. an email-search agent could otherwise dig through years of messages unbounded, and every extra tool call adds cost and context.
-
-```python
-from langchain.agents.middleware import ToolCallLimitMiddleware
-
-agent = create_agent(
-    model=model,
-    tools=cinebot_tools,
-    checkpointer=InMemorySaver(),
-    middleware=[
-        ToolCallLimitMiddleware(run_limit=8),               # global cap per invoke()
-        ToolCallLimitMiddleware(
-            tool_name="cancel_booking",
-            thread_limit=2,   # per-tool cap across the whole conversation
-            run_limit=1,      # per-tool cap per invoke()
-        ),
-    ],
-)
-```
-
-**Setting the right number:** this comes from domain knowledge, not a framework default — e.g. a web-search agent rarely needs more than 5–15 searches per task. The developer who understands the business use case should set it, rather than leaving it unbounded or guessing arbitrarily high.
-
-### 2.5 Model Fallback Middleware
-**Purpose:** Graceful degradation if the primary model provider fails (outage, expired key, hard error) — the app shouldn't simply stop working.
-
-```python
-from langchain.agents.middleware import ModelFallbackMiddleware
-
-agent = create_agent(
-    model="openai:gpt-5.5",              # primary model
-    tools=your_tools,
-    middleware=[
-        ModelFallbackMiddleware(
-            "openai:gpt-5.4-mini",       # fallback if primary fails
-            # "ollama:llama3.2",         # further fallback (fully local)
-        ),
-    ],
-)
-# Chain tries each model in order; silently moves to the next on failure.
-```
-
-**What it is not:** it does not route by speed or cost, and it is not a smart dispatcher picking the "best" model for a task — it only activates on genuine failure. The full prior conversation history is passed unchanged to whichever model ends up handling the request.
-
-### 2.6 PII (Personally Identifiable Information) Middleware
-**Purpose:** Detect and handle sensitive data before/after it reaches the model — a compliance requirement in healthcare, finance, etc. Data like DOB, phone number, email, government IDs, or passwords generally shouldn't reach the model if avoidable.
-
-**Built-in detectors:** email · credit card (Luhn-validated) · IP address · MAC address · URL
-
-**Strategies:**
-| Strategy | Behavior |
-|---|---|
-| `redact` | Replace with `[REDACTED_TYPE]` — value never reaches the model at all |
-| `mask` | Partially obscure (e.g. `****-****-****-1234`) — model can tell something is present without seeing the real value |
-| `hash` | Deterministic hashing |
-| `block` | Raise an exception |
-
-**Configuration options:**
-| Parameter | Description | Default |
-|---|---|---|
-| `pii_type` | Type of PII to detect (built-in or custom) | Required |
-| `strategy` | `"block"`, `"redact"`, `"mask"`, or `"hash"` | `"redact"` |
-| `detector` | Custom detector function or regex pattern | `None` (uses built-in) |
-| `apply_to_input` | Check user messages before model call | `True` |
-| `apply_to_output` | Check AI messages after model call | `False` |
-| `apply_to_tool_results` | Check tool result messages after execution | `False` |
-
-```python
-from langchain.agents.middleware import PIIMiddleware
-
-agent = create_agent(
-    model=model,
-    tools=your_tools,
-    middleware=[
-        PIIMiddleware("email", strategy="redact", apply_to_input=True),
-        PIIMiddleware("credit_card", strategy="mask", apply_to_input=True),
-    ],
-)
-# Input:        "Email: john@example.com, Card: 4111-1111-1111-1234"
-# Sent to model: "Email: [REDACTED_EMAIL], Card: ****-****-****-1234"
-```
-
-**Custom detectors** — needed because country-specific ID formats (Aadhaar, PAN, etc.) can't all ship as built-ins. Two equivalent approaches:
-
-```python
-# Regex pattern
-import re
-aadhaar_pattern = re.compile(r"\b\d{12}\b")
-PIIMiddleware("aadhaar", detector=aadhaar_pattern, strategy="mask")
-
-# Custom function (for structured codes like booking references)
-def detect_booking_code(content: str) -> list[dict]:
-    matches = []
-    for match in re.finditer(r"BK\d{4}", content):
-        matches.append({"text": match.group(0), "start": match.start(), "end": match.end()})
-    return matches
-
-PIIMiddleware("booking_code", detector=detect_booking_code, strategy="mask")
-```
-
-### 2.7 Todo List Middleware
-**Purpose:** Break a complex user request into actionable steps automatically.
-
-```python
-from langchain.agents.middleware import TodoListMiddleware
-
-agent = create_agent(
-    model=model,
-    tools=your_tools,
-    middleware=[TodoListMiddleware()],
-    system_prompt="You are helpful...",
-)
-# "Plan a movie night: check what's showing, pick a movie, book 2 seats"
-# → agent automatically breaks this into steps and executes them
-```
-
-### 2.8 LLM Tool Selector Middleware
-**Purpose:** Reduce context (and cost) by only sending the model the tools relevant to the current request; a cheaper model can do the selection.
-
-```python
-from langchain.agents.middleware import LLMToolSelectorMiddleware
-
-agent = create_agent(
-    model=model,
-    tools=cinebot_tools,  # e.g. 6 tools available
-    middleware=[
-        LLMToolSelectorMiddleware(
-            model="gpt-4-mini",                    # can be a cheaper model
-            max_tools=2,
-            always_include=["check_showtimes"],
-        ),
-    ],
-)
-# "Cancel booking" → sends only [check_showtimes, cancel_booking]
-# "Check showtimes" → sends only [check_showtimes], if sufficient
-```
-
-### 2.9 Tool Error Middleware
-**Purpose:** Convert raw tool exceptions into clean, model-facing messages instead of leaking internal details.
-
-```python
-from langchain.agents.middleware import ToolErrorMiddleware
-
-def handle_seat_error(exc: Exception, request) -> str | None:
-    if isinstance(exc, ValueError):
-        return "Invalid seat format. Please use format like 'A12'."
-    return None  # other errors propagate normally
-
-agent = create_agent(
-    model=model,
-    tools=cinebot_tools,
-    middleware=[ToolErrorMiddleware(on_error=handle_seat_error)],
-)
-# Tool raises: "Malformed seat number '12'"
-# Agent receives: "Invalid seat format. Please use format like 'A12'."
-```
-
-### 2.10 Tool Retry Middleware
-**Purpose:** Automatically retry transient tool failures (network blips, timeouts) with exponential backoff.
-
-```python
-from langchain.agents.middleware import ToolRetryMiddleware
-
-agent = create_agent(
-    model=model,
-    tools=[flaky_external_api],
-    middleware=[
-        ToolRetryMiddleware(
-            max_retries=3,
-            initial_delay=1.0,      # seconds
-            backoff_factor=2.0,     # multiplier per retry → 1s, 2s, 4s
-            on_failure="continue",  # or "fail" to stop
-        ),
-    ],
-)
-```
-
-### 2.11 LLM Tool Emulator Middleware
-**Purpose:** Simulate specific tool calls with an LLM instead of executing the real tool — useful for safe testing/dev environments and avoiding costly real API calls.
-
-```python
-from langchain.agents.middleware import LLMToolEmulator
-
-agent = create_agent(
-    model=model,
-    tools=[book_seats, cancel_booking, send_email],
-    middleware=[
-        LLMToolEmulator(
-            tools=["book_seats", "cancel_booking"],  # emulated
-            model="gpt-4-mini",
-        ),
-        # send_email still executes for real
-    ],
-)
+    except Exception as e:
+        print(f"Tool failed: {e}")
+        raise
 ```
 
 ---
 
-## 3. Custom Guardrails
+# ⚖️ 13. `before_model` vs `wrap_model_call`
 
-For validation logic beyond the built-ins, write custom middleware that hooks in **before** or **after** the agent runs. Both class-based and decorator syntax are supported and are equivalent.
+This distinction is critical.
 
-### 3.1 Before-Agent Guardrails (deterministic input filter)
-Runs once at the start of each invocation — good for auth checks, rate limiting, or blocking disallowed requests before any processing.
+| Feature                 | `before_model`             | `wrap_model_call` |
+| ----------------------- | -------------------------- | ----------------- |
+| Access state            | Yes                        | Yes               |
+| Access runtime          | Yes                        | Yes               |
+| Access request          | No direct request object   | Yes               |
+| Modify model            | Limited                    | Yes               |
+| Modify tools            | No direct request override | Yes               |
+| Modify messages         | Limited/state-based        | Yes               |
+| Retry model call        | No                         | Yes               |
+| Dynamic model selection | Not ideal                  | Yes               |
+| Wrap execution          | No                         | Yes               |
 
-```python
-# Class syntax
-from typing import Any
-from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
-from langgraph.runtime import Runtime
+Think of it as:
 
-class ContentFilterMiddleware(AgentMiddleware):
-    """Deterministic guardrail: block requests containing banned keywords."""
-
-    def __init__(self, banned_keywords: list[str]):
-        super().__init__()
-        self.banned_keywords = [kw.lower() for kw in banned_keywords]
-
-    @hook_config(can_jump_to=["end"])
-    def before_agent(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
-        if not state["messages"]:
-            return None
-        first_message = state["messages"][0]
-        if first_message.type != "human":
-            return None
-        content = first_message.content.lower()
-        for keyword in self.banned_keywords:
-            if keyword in content:
-                return {
-                    "messages": [{
-                        "role": "assistant",
-                        "content": "I cannot process requests containing inappropriate content. Please rephrase your request."
-                    }],
-                    "jump_to": "end",
-                }
-        return None
-
-agent = create_agent(
-    model=model,
-    tools=[search_tool, calculator_tool],
-    middleware=[ContentFilterMiddleware(banned_keywords=["hack", "exploit", "malware"])],
-)
+```text
+before_model
+    ↓
+Observe / prepare
+    ↓
+wrap_model_call
+    ↓
+Control the actual model request
+    ↓
+Model
 ```
 
-```python
-# Decorator syntax (equivalent)
-from langchain.agents.middleware import before_agent, AgentState, hook_config
-from langgraph.runtime import Runtime
+---
 
-banned_keywords = ["hack", "exploit", "malware"]
+# 🎯 14. Dynamic Model Selection
 
-@before_agent(can_jump_to=["end"])
-def content_filter(state: AgentState, runtime: Runtime) -> dict | None:
-    if not state["messages"]:
-        return None
-    first_message = state["messages"][0]
-    if first_message.type != "human":
-        return None
-    content = first_message.content.lower()
-    for keyword in banned_keywords:
-        if keyword in content:
-            return {
-                "messages": [{"role": "assistant", "content": "I cannot process requests containing inappropriate content. Please rephrase your request."}],
-                "jump_to": "end",
-            }
-    return None
-
-agent = create_agent(model=model, tools=[search_tool, calculator_tool], middleware=[content_filter])
-```
-
-### 3.2 After-Agent Guardrails (model-based safety check)
-Runs once on the final response — good for LLM-judged safety checks, quality validation, or compliance scans on the complete answer.
+A powerful real-world use case is choosing a model based on conversation complexity.
 
 ```python
-# Class syntax
-from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
-from langgraph.runtime import Runtime
-from langchain.messages import AIMessage
 from langchain.chat_models import init_chat_model
+from langchain.agents.middleware import (
+    wrap_model_call,
+    ModelRequest,
+    ModelResponse,
+)
+from typing import Callable
 
-class SafetyGuardrailMiddleware(AgentMiddleware):
-    """Model-based guardrail: use an LLM to evaluate response safety."""
+complex_model = init_chat_model(
+    "claude-sonnet-4-6"
+)
 
-    def __init__(self):
-        super().__init__()
-        self.safety_model = init_chat_model("gpt-5.4-mini")
+simple_model = init_chat_model(
+    "claude-haiku-4-5-20251001"
+)
 
-    @hook_config(can_jump_to=["end"])
-    def after_agent(self, state: AgentState, runtime: Runtime) -> dict | None:
-        if not state["messages"]:
-            return None
-        last_message = state["messages"][-1]
-        if not isinstance(last_message, AIMessage):
-            return None
-        safety_prompt = f"""Evaluate if this response is safe and appropriate.
-        Respond with only 'SAFE' or 'UNSAFE'.
+@wrap_model_call
+def dynamic_model(
+    request: ModelRequest,
+    handler: Callable[
+        [ModelRequest],
+        ModelResponse,
+    ],
+) -> ModelResponse:
 
-        Response: {last_message.content}"""
-        result = self.safety_model.invoke([{"role": "user", "content": safety_prompt}])
-        if "UNSAFE" in result.content:
-            last_message.content = "I cannot provide that response. Please rephrase your request."
-        return None
+    if len(request.messages) > 10:
+        model = complex_model
+    else:
+        model = simple_model
 
-agent = create_agent(model=model, tools=[search_tool, calculator_tool], middleware=[SafetyGuardrailMiddleware()])
+    return handler(
+        request.override(model=model)
+    )
 ```
 
-*(Decorator equivalent: `@after_agent(can_jump_to=["end"])` wrapping a plain function — same logic, no class needed.)*
+The idea:
 
-### 3.3 Combining Multiple Guardrails
-Guardrails stack by adding them to the `middleware` list; they run in the order declared, building layered protection:
+```text
+Short / Simple Conversation
+          ↓
+      Cheap Model
+
+Long / Complex Conversation
+          ↓
+     Capable Model
+```
+
+This can improve:
+
+* Cost efficiency
+* Latency
+* Scalability
+* Model utilization
+
+---
+
+# 🔐 15. Dynamic Tool Selection
+
+Tools can also be filtered dynamically.
 
 ```python
-agent = create_agent(
-    model=model,
-    tools=[search_tool, send_email_tool],
-    middleware=[
-        ContentFilterMiddleware(banned_keywords=["hack", "exploit"]),        # 1. before-agent filter
-        PIIMiddleware("email", strategy="redact", apply_to_input=True),      # 2. PII on input
-        PIIMiddleware("email", strategy="redact", apply_to_output=True),     #    PII on output
-        HumanInTheLoopMiddleware(interrupt_on={"send_email": True}),         # 3. human approval
-        SafetyGuardrailMiddleware(),                                         # 4. after-agent safety check
+from langchain.agents import create_agent
+from langchain.agents.middleware import (
+    wrap_model_call,
+    ModelRequest,
+    ModelResponse,
+)
+from typing import Callable
+
+@wrap_model_call
+def select_tools(
+    request: ModelRequest,
+    handler: Callable[
+        [ModelRequest],
+        ModelResponse,
     ],
+) -> ModelResponse:
+
+    relevant_tools = select_relevant_tools(
+        request.state,
+        request.runtime,
+    )
+
+    return handler(
+        request.override(
+            tools=relevant_tools
+        )
+    )
+```
+
+Benefits:
+
+```text
+Fewer tools
+    ↓
+Smaller prompt
+    ↓
+Less confusion
+    ↓
+Better tool selection
+    ↓
+Better accuracy
+```
+
+It can also provide permission-based tool access.
+
+---
+
+# 🏷️ 16. VIP Tool Gating
+
+Middleware can dynamically remove tools based on state.
+
+```python
+from langchain.agents.middleware import wrap_model_call
+
+@wrap_model_call
+def gate_vip_tools(request, handler):
+
+    is_vip = request.state.get(
+        "is_vip_member",
+        False,
+    )
+
+    if not is_vip:
+
+        allowed = [
+            tool
+            for tool in request.tools
+            if tool.name != "book_vip_lounge"
+        ]
+
+        request = request.override(
+            tools=allowed
+        )
+
+    return handler(request)
+```
+
+This allows the same agent to expose different capabilities to different users.
+
+---
+
+# 🏗️ 17. Decorator-Based Middleware
+
+Decorator-based middleware is ideal for:
+
+* One hook
+* Simple logic
+* Quick experimentation
+* Prototyping
+
+Example:
+
+```python
+from langchain.agents.middleware import before_model
+from langchain.agents import AgentState
+from langgraph.runtime import Runtime
+from typing import Any
+
+@before_model
+def log_model_call(
+    state: AgentState,
+    runtime: Runtime,
+) -> dict[str, Any] | None:
+
+    print(
+        f"Messages: {len(state['messages'])}"
+    )
+
+    return None
+```
+
+---
+
+# 🏢 18. Class-Based Middleware
+
+Class-based middleware is better when you need:
+
+* Multiple hooks
+* Internal state
+* Configuration
+* Reusability
+* Sync and async implementations
+* More complex business logic
+
+```python
+from langchain.agents.middleware import AgentMiddleware
+
+class CallCounterMiddleware(AgentMiddleware):
+
+    def __init__(self, warn_after: int = 3):
+
+        super().__init__()
+
+        self._num_calls = 0
+        self.warn_after = warn_after
+
+    def before_model(
+        self,
+        state,
+        runtime,
+    ):
+
+        self._num_calls += 1
+
+        if self._num_calls > self.warn_after:
+
+            print(
+                "High number of model calls."
+            )
+
+        return None
+```
+
+---
+
+# 📊 19. Decorator vs Class
+
+| Feature               | Decorator | Class     |
+| --------------------- | --------- | --------- |
+| Simple middleware     | Excellent | Good      |
+| Single hook           | Excellent | Good      |
+| Multiple hooks        | Limited   | Excellent |
+| Internal state        | Limited   | Excellent |
+| Configuration         | Limited   | Excellent |
+| Reusability           | Moderate  | Excellent |
+| Sync + async          | Limited   | Excellent |
+| Production complexity | Moderate  | Excellent |
+
+### Rule of thumb
+
+```text
+Simple hook
+    ↓
+Decorator
+
+Complex / reusable middleware
+    ↓
+AgentMiddleware class
+```
+
+---
+
+# 🧬 20. Extending Existing Middleware
+
+Custom middleware can extend built-in middleware.
+
+Example:
+
+```python
+class MyPIIMiddleware(PIIMiddleware):
+
+    def wrap_model_call(
+        self,
+        request,
+        handler,
+    ):
+
+        response = handler(request)
+
+        return ExtendedModelResponse(
+            model_response=response,
+            command=Command(
+                update={
+                    "trace_layer": "outer",
+                    "messages": [
+                        SystemMessage(
+                            content="[Outer ran]"
+                        )
+                    ],
+                }
+            ),
+        )
+```
+
+Python inheritance allows you to:
+
+* Reuse existing behavior
+* Add new hooks
+* Customize existing hooks
+* Extend built-in middleware
+
+Be careful when overriding a parent hook because replacing the method can remove the parent's behavior.
+
+---
+
+# 🧠 21. Custom State Schema
+
+Middleware can extend the agent state.
+
+```python
+from langchain.agents.middleware import AgentState
+from typing_extensions import NotRequired
+
+class CustomState(AgentState):
+
+    model_call_count: NotRequired[int]
+
+    user_id: NotRequired[str]
+```
+
+This enables middleware to:
+
+* Track counters
+* Store flags
+* Share information between hooks
+* Maintain user context
+* Implement rate limiting
+* Track usage
+* Perform audit logging
+* Make conditional decisions
+
+---
+
+# 🔢 22. State Tracking Example
+
+```python
+from langchain.agents.middleware import (
+    after_model,
+    AgentState,
+)
+from langgraph.runtime import Runtime
+from typing import Any
+from typing_extensions import NotRequired
+
+class TrackingState(AgentState):
+
+    model_call_count: NotRequired[int]
+
+
+@after_model(state_schema=TrackingState)
+def increment_after_model(
+    state: TrackingState,
+    runtime: Runtime,
+) -> dict[str, Any] | None:
+
+    return {
+        "model_call_count":
+            state.get("model_call_count", 0) + 1
+    }
+```
+
+---
+
+# 🔄 23. State Updates
+
+### Node-style hooks
+
+Return a dictionary:
+
+```python
+return {
+    "model_call_count": 10
+}
+```
+
+The dictionary is applied to the agent state through graph reducers.
+
+### Wrap-style hooks
+
+For model calls, use:
+
+```python
+ExtendedModelResponse
+```
+
+with:
+
+```python
+Command(update={...})
+```
+
+Example:
+
+```python
+from langgraph.types import Command
+from langchain.agents.middleware import (
+    ExtendedModelResponse,
+)
+
+return ExtendedModelResponse(
+    model_response=response,
+    command=Command(
+        update={
+            "last_model_call_tokens": 150
+        }
+    ),
 )
 ```
 
 ---
 
-## 4. Guardrail vs. Middleware
+# 🧩 24. Middleware Composition
 
-Recurring point of confusion, resolved simply: **a guardrail is the concept** (the goal — protecting the agent from doing something undesirable). **Middleware is the mechanism** used to implement that goal. They are not two competing systems — guardrails need to be applied *as* middleware.
+Multiple middleware layers can compose state updates.
 
-## 5. Middleware Ordering
+```text
+Middleware 1
+     ↓
+Middleware 2
+     ↓
+Middleware 3
+     ↓
+Model
+```
 
-Multiple middlewares can be attached to a single agent without issue — no need for a separate agent per concern. They don't run in random order: either a defined priority applies, or they run in the order declared. Middlewares are generally written not to collide with each other (e.g., PII redaction should run before the model call).
+For state conflicts:
 
-## 6. LangChain vs. LangGraph
+```text
+Inner Middleware
+       ↓
+Outer Middleware
+       ↓
+Outer value wins
+```
 
-Middleware as a concept exists in LangGraph too — it isn't unique to LangChain. LangGraph becomes worth reaching for when an application needs very precise, deterministic control internally — deeper control over checkpointers, stores, and interrupts than LangChain's abstractions expose by default. LangChain sits on top of LangGraph as a more convenient, somewhat abstracted interface to the same machinery.
+For additive message reducers:
 
-For most simple agents — even something like an enterprise RAG chatbot handling a handful of question types — LangChain with built-in middleware is generally sufficient; middleware might not even be strictly necessary for a straightforward RAG setup.
-
-**On frameworkless tools (Claude Code, Cursor):** these use MCP connections and plain instructions rather than LangChain, but are doing essentially the same thing under a different name — "hooks" instead of "middleware." The meaningful difference: agents built this way generally aren't deployable as standalone applications; they stay local, developer-facing tools rather than production services.
-
----
-
-## 7. Real-World Applications
-
-- **Fraud detection (fintech):** rate-limiting hooks around transaction tools
-- **Healthcare compliance:** PII middleware for HIPAA
-- **Customer support:** HITL approval before refunds/account changes
-- **Audit logging:** wrap tool calls to track who did what and when
-- **Cost management:** model fallback, tool selector, and tool emulator middleware
-
-## 8. Key Principles
-
-1. **Checkpointer required** — HITL and persistent (`thread_limit`) limits need `InMemorySaver()` or another checkpoint store.
-2. **Stack multiple middlewares** — order matters (e.g., PII redaction before the model call).
-3. **Thread safety** — use `config={"configurable": {"thread_id": "unique_id"}}` for persistence across interrupts/resumes.
-4. **Graceful degradation** — prefer `exit_behavior="end"` for limits and `on_failure="continue"` for retries over hard exceptions, unless a hard stop is actually desired.
-
----
-
-## 9. Live Q&A Highlights
-
-| Question | Answer |
-|---|---|
-| Why not just prompt "don't call the tool more than twice" instead of a limit middleware? | Unreliable — the model can ignore it, and it breaks if the model is swapped. Code-enforced limits are deterministic. |
-| Will middleware add latency? | Depends on type. Model-calling middleware (e.g. summarization) adds some latency; pure code-logic middleware (e.g. a call-limit check) has minimal overhead. |
-| Can I configure multiple HITL approval levels (e.g. two sign-offs)? | Not out of the box — requires custom middleware. |
-| Does model-calling middleware (e.g. summarization) share the agent's main context? | No — it runs against its own separate context. |
-| Is PII handled by guardrails or middleware? | Guardrail is the concept; middleware is the mechanism — not competing systems. |
-| Can multiple middlewares be attached to one agent? | Yes, passed in as a list, no issue. |
-| Do middlewares run in random order? | No — either a defined priority applies, or declaration order; they're designed not to collide. |
-| When LangChain + middleware vs. dropping to LangGraph? | LangChain + middleware suffices for most agents, including simple RAG. LangGraph is worth it when precise, deterministic control over state/checkpointing/interrupts is genuinely needed. |
-| What to use for observability (LangFuse, OpenTelemetry, etc.)? | No universal answer — depends on the app. LangFuse integrates easily with the LangChain family; for RAG specifically, test dedicated evaluation frameworks rather than assuming defaults are enough — early results are often deceptively easy. |
+```text
+Inner message
++
+Outer message
+=
+Both messages
+```
 
 ---
 
-## 10. Action Items
+# 🔄 25. Middleware Execution Order
 
-- [ ] Recreate the `SummarizationMiddleware` example with your own `trigger`/`keep` values; watch it fire on a long conversation.
-- [ ] Build the `HumanInTheLoopMiddleware` send-email demo; resolve the interrupt both via `Command(resume=...)` and your own approve/reject logic.
-- [ ] Add a model call limit and a tool call limit to an existing agent; deliberately trigger both.
-- [ ] Set up `ModelFallbackMiddleware` and simulate a primary-model failure (e.g. an intentionally wrong API key) to confirm fallback fires.
-- [ ] Write one custom PII detector (`re`-based) for an ID format relevant to your own country/use case.
-- [ ] Be ready to explain, in your own words, the difference between a guardrail and middleware (recurring interview-style question).
-- [ ] Try `TodoListMiddleware`, `LLMToolSelectorMiddleware`, `ToolErrorMiddleware`, `ToolRetryMiddleware`, and `LLMToolEmulator` on a small test agent.
-- [ ] Write one `before_agent` and one `after_agent` custom guardrail from scratch.
-- [ ] Come back ready for custom middleware — building your own from scratch is the focus of the next class.
+Consider:
+
+```python
+agent = create_agent(
+    model="gpt-5.5",
+    middleware=[
+        middleware1,
+        middleware2,
+        middleware3,
+    ],
+)
+```
+
+### Before hooks
+
+```text
+middleware1.before_agent()
+        ↓
+middleware2.before_agent()
+        ↓
+middleware3.before_agent()
+```
+
+### Before model
+
+```text
+middleware1.before_model()
+        ↓
+middleware2.before_model()
+        ↓
+middleware3.before_model()
+```
+
+### Wrap model
+
+```text
+middleware1.wrap_model_call()
+        ↓
+middleware2.wrap_model_call()
+        ↓
+middleware3.wrap_model_call()
+        ↓
+Model
+```
+
+### After model
+
+```text
+middleware3.after_model()
+        ↓
+middleware2.after_model()
+        ↓
+middleware1.after_model()
+```
+
+### After agent
+
+```text
+middleware3.after_agent()
+        ↓
+middleware2.after_agent()
+        ↓
+middleware1.after_agent()
+```
+
+### Core rule
+
+```text
+before_*  → First to Last
+
+wrap_*    → Nested
+
+after_*   → Last to First
+```
 
 ---
 
-## 11. Additional Resources
+# 🚦 26. Agent Jumps
 
-- [Middleware API reference](https://reference.langchain.com/python/langchain/middleware/)
+Middleware can terminate or redirect execution using:
 
+```python
+jump_to
+```
+
+Available targets include:
+
+```text
+'end'
+'tools'
+'model'
+```
+
+Example:
+
+```python
+from langchain.agents.middleware import (
+    after_model,
+    hook_config,
+    AgentState,
+)
+from langchain.messages import AIMessage
+from langgraph.runtime import Runtime
+from typing import Any
+
+@after_model
+@hook_config(can_jump_to=["end"])
+def check_for_blocked(
+    state: AgentState,
+    runtime: Runtime,
+) -> dict[str, Any] | None:
+
+    last_message = state["messages"][-1]
+
+    if "BLOCKED" in last_message.content:
+
+        return {
+            "messages": [
+                AIMessage(
+                    "I cannot respond to that request."
+                )
+            ],
+            "jump_to": "end",
+        }
+
+    return None
+```
 
 ---
 
-### What was removed as duplicate
-- Two near-identical `SummarizationMiddleware`, `HumanInTheLoopMiddleware`, `ModelCallLimitMiddleware`/`ToolCallLimitMiddleware`, `ModelFallbackMiddleware`, and `PIIMiddleware` code examples (one from each source doc) were merged into single canonical versions, keeping the more complete parameter set from each.
-- Repeated "guardrail vs. middleware" and "middleware ordering" explanations were consolidated into single sections (§4–5).
-- Duplicate mentions of checkpointer requirements were folded into Key Principles (§8).
+# 🔁 27. Retry Middleware
 
-### What was added (present in only one source, now included for completeness)
-- Todo List, LLM Tool Selector, Tool Error, Tool Retry, and LLM Tool Emulator middleware (§2.7–2.11) — these were missing from the narrative transcript but present in the reference doc.
-- The full custom guardrails section (§3) with `before_agent`/`after_agent` hooks, class and decorator syntax, and the combined-guardrails stacking example — present only in the reference doc.
-- The PII configuration options table and MAC address/URL detectors — present only in the reference doc.
-- The Q&A table and action items (§9–10) — present only in the transcript notes.
+Wrap-style middleware is useful for retry logic.
+
+```python
+from langchain.agents.middleware import (
+    wrap_model_call,
+    ModelRequest,
+    ModelResponse,
+)
+from typing import Callable
+
+@wrap_model_call
+def retry_model(
+    request: ModelRequest,
+    handler: Callable[
+        [ModelRequest],
+        ModelResponse,
+    ],
+) -> ModelResponse:
+
+    for attempt in range(3):
+
+        try:
+
+            return handler(request)
+
+        except Exception as e:
+
+            if attempt == 2:
+                raise
+
+            print(
+                f"Retry {attempt + 1}/3 "
+                f"after error: {e}"
+            )
+```
+
+The handler can be called:
+
+```text
+0 times → short circuit
+
+1 time → normal execution
+
+Multiple times → retry/fallback behavior
+```
+
+---
+
+# ✍️ 28. Dynamic Prompt Middleware
+
+Middleware can modify the system prompt dynamically.
+
+```python
+from collections.abc import Callable
+
+from langchain.agents.middleware import (
+    ModelRequest,
+    ModelResponse,
+    wrap_model_call,
+)
+from langchain.messages import SystemMessage
+
+@wrap_model_call
+def add_context(
+    request: ModelRequest,
+    handler: Callable[
+        [ModelRequest],
+        ModelResponse,
+    ],
+) -> ModelResponse:
+
+    new_content = (
+        list(
+            request.system_message.content_blocks
+        )
+        + [
+            {
+                "type": "text",
+                "text": "Additional context.",
+            }
+        ]
+    )
+
+    new_system_message = SystemMessage(
+        content=new_content
+    )
+
+    return handler(
+        request.override(
+            system_message=new_system_message
+        )
+    )
+```
+
+Important:
+
+```python
+request.system_message
+```
+
+is a `SystemMessage`.
+
+Use:
+
+```python
+content_blocks
+```
+
+when modifying the system message so the existing structure is preserved.
+
+---
+
+# 📡 29. Custom Stream Transformers
+
+Middleware can also register stream transformer factories.
+
+This can be useful for:
+
+* Counters
+* Side-channel artifacts
+* Partial outputs
+* Wire-level redaction
+* Tool activity
+* Typed extension channels
+
+Example:
+
+```python
+from langchain.agents.middleware import AgentMiddleware
+
+class ToolActivityMiddleware(AgentMiddleware):
+
+    transformers = (
+        ToolActivityTransformer,
+    )
+```
+
+Then:
+
+```python
+agent = create_agent(
+    model="gpt-5-nano",
+    tools=[...],
+    middleware=[
+        ToolActivityMiddleware()
+    ],
+)
+```
+
+This functionality requires:
+
+```text
+langchain >= 1.3.2
+```
+
+---
+
+# 🔍 30. Middleware Tracing
+
+Middleware hook spans can be traced.
+
+A trace policy can control what gets recorded.
+
+```python
+from langchain.agents.middleware import (
+    AgentMiddleware,
+    TracePolicy,
+    omit_payload,
+)
+
+class MyMiddleware(AgentMiddleware):
+
+    trace_policy = TracePolicy(
+        process_inputs=omit_payload
+    )
+```
+
+Global configuration:
+
+```python
+from langchain.agents.middleware import (
+    configure_trace_policy,
+    TracePolicy,
+    omit_payload,
+)
+
+configure_trace_policy(
+    TracePolicy(
+        process_inputs=omit_payload
+    )
+)
+```
+
+A middleware-level policy overrides the global default.
+
+---
+
+# 🛡️ 31. Security Considerations
+
+Shell access is powerful and therefore requires strong isolation.
+
+An agent with shell access may potentially:
+
+```text
+Create files
+Modify files
+Delete files
+Execute programs
+Access available resources
+Interact with remote systems
+```
+
+Therefore:
+
+```text
+LLM
+ +
+Shell Access
+ =
+High Capability
+```
+
+but also:
+
+```text
+High Capability
+ +
+Weak Isolation
+ =
+High Risk
+```
+
+Prefer sandboxing for untrusted or production workloads.
+
+---
+
+# 🧠 32. PII Middleware Example
+
+PII protection can require multiple hooks.
+
+### Before model
+
+Sensitive information can be masked before reaching the model:
+
+```text
+User Input
+    ↓
+before_model
+    ↓
+PII Redaction
+    ↓
+Model
+```
+
+### After model
+
+Model-generated sensitive information can also be checked:
+
+```text
+Model
+    ↓
+after_model
+    ↓
+PII Validation
+    ↓
+User
+```
+
+This is why middleware often needs multiple lifecycle hooks rather than a single interception point.
+
+---
+
+# 🧱 33. Middleware Design Principles
+
+Good middleware should follow these principles:
+
+### Single responsibility
+
+```text
+One middleware
+        ↓
+One primary concern
+```
+
+Avoid combining unrelated business rules.
+
+### Graceful error handling
+
+A middleware bug should not unnecessarily crash the entire agent.
+
+### Correct hook selection
+
+Use:
+
+```text
+before_model
+```
+
+for observation, validation, and sequential logic.
+
+Use:
+
+```text
+wrap_model_call
+```
+
+when the actual model request must be modified or controlled.
+
+Use:
+
+```text
+wrap_tool_call
+```
+
+when tool execution needs control.
+
+### Explicit state
+
+Document custom state fields clearly.
+
+### Independent testing
+
+Test middleware independently before integrating it into a complete agent.
+
+### Prefer built-in middleware
+
+If LangChain already provides the required middleware, use it.
+
+Create custom middleware only when there is a genuine application-specific requirement.
+
+---
+
+# 🏭 34. Production Use Cases
+
+Custom middleware can support:
+
+| Requirement            | Middleware Approach            |
+| ---------------------- | ------------------------------ |
+| Authentication context | Custom state                   |
+| Authorization          | Dynamic tool selection         |
+| PII protection         | `before_model` + `after_model` |
+| Logging                | `before_model` / `after_model` |
+| Cost optimization      | Dynamic model selection        |
+| Retry logic            | `wrap_model_call`              |
+| Fallback models        | `wrap_model_call`              |
+| Tool monitoring        | `wrap_tool_call`               |
+| Rate limiting          | Custom state + hooks           |
+| Audit logging          | `after_model` / `after_agent`  |
+| Prompt customization   | `wrap_model_call`              |
+| Request filtering      | `before_model`                 |
+| Early termination      | Agent jumps                    |
+| Usage tracking         | Custom state                   |
+| Resource management    | `before_agent` + `after_agent` |
+
+---
+
+# 💡 35. Important Q&A Insights
+
+### Should login/session validation use an agent?
+
+No.
+
+Authentication and session validation are deterministic programming concerns.
+
+Use normal application logic.
+
+```text
+Authentication
+    ↓
+Regular Code
+
+Intelligent Decision
+    ↓
+Agent
+```
+
+---
+
+### Is LangChain's agent graph a DAG?
+
+No.
+
+The agentic loop can cycle:
+
+```text
+Model
+  ↓
+Tool
+  ↓
+Model
+  ↓
+Tool
+  ↓
+Model
+```
+
+Therefore it is not a Directed Acyclic Graph.
+
+---
+
+### LangChain vs LangGraph?
+
+```text
+LangChain
+    ↓
+Higher-level agent development
+
+LangGraph
+    ↓
+Lower-level graph/runtime control
+```
+
+LangGraph becomes especially useful when fine-grained graph control, custom state transitions, and complex orchestration are required.
+
+---
+
+### Does every agent step consume LLM tokens?
+
+No.
+
+LLM tokens are consumed when the model is actually called.
+
+Regular Python execution does not consume LLM tokens.
+
+```text
+Python Logic
+    ↓
+No LLM tokens
+
+LLM Call
+    ↓
+LLM tokens
+```
+
+---
+
+### Should different agent frameworks be mixed in one project?
+
+Generally, avoid unnecessary framework mixing.
+
+Prefer:
+
+```text
+One framework
+    ↓
+Multiple agents
+```
+
+If independent systems need to communicate, use:
+
+```text
+API
+```
+
+or an agent-to-agent protocol such as:
+
+```text
+A2A
+```
+
+---
+
+### Can shell middleware access a remote machine?
+
+Yes, when the execution environment has legitimate access to that machine.
+
+For example:
+
+```text
+Agent
+  ↓
+Local Shell
+  ↓
+SSH
+  ↓
+Remote Machine
+```
+
+The security boundary and credentials must be handled carefully.
+
+---
+
+### Can a browser-based web application directly access the user's terminal?
+
+No.
+
+Browsers intentionally sandbox access to the local machine.
+
+Similar capabilities require a controlled access layer such as:
+
+* Installed application
+* IDE extension
+* MCP
+* Proper backend execution environment
+
+---
+
+# 🗺️ 36. Class Roadmap
+
+```text
+Class 14
+   │
+   ├── Shell Tools
+   │
+   ├── Built-in Middleware
+   │
+   ├── Custom Middleware
+   │
+   ├── Middleware Hooks
+   │
+   ├── State
+   │
+   ├── Dynamic Models
+   │
+   └── Dynamic Tools
+          │
+          ▼
+         MCP
+          │
+          ▼
+       LangGraph
+          │
+          ├── Runtime
+          ├── Multi-Agent
+          └── Memory
+                │
+                ▼
+          Full Projects
+```
+
+---
+
+# 📝 37. Practice Tasks
+
+* [ ] Recreate the `ShellToolMiddleware` demo
+* [ ] Create a file through the shell agent
+* [ ] Execute a Python script through the agent
+* [ ] Delete the generated file
+* [ ] Inspect the agent message history
+* [ ] Create a `before_agent` hook
+* [ ] Create an `after_agent` hook
+* [ ] Verify setup and teardown order
+* [ ] Implement `before_model`
+* [ ] Implement `after_model`
+* [ ] Build dynamic model selection
+* [ ] Create decorator-based middleware
+* [ ] Convert it into class-based middleware
+* [ ] Add internal middleware state
+* [ ] Extend `PIIMiddleware`
+* [ ] Implement middleware execution logging
+* [ ] Test middleware execution order
+* [ ] Implement a retry middleware
+* [ ] Implement dynamic tool selection
+* [ ] Experiment with agent jumps
+* [ ] Explore custom state schemas
+* [ ] Explore middleware tracing
+* [ ] Prepare for MCP
+
+---
+
+# 📚 38. Quick Revision Cheat Sheet
+
+```text
+ShellToolMiddleware
+    ↓
+Give agent controlled shell access
+
+before_agent
+    ↓
+Runs once before agent execution
+
+before_model
+    ↓
+Runs before every model call
+
+wrap_model_call
+    ↓
+Controls model request/execution
+
+after_model
+    ↓
+Runs after every model response
+
+wrap_tool_call
+    ↓
+Controls tool execution
+
+after_agent
+    ↓
+Runs once after agent execution
+```
+
+---
+
+## Middleware Selection
+
+```text
+Need simple logging?
+        ↓
+before_model / after_model
+
+Need setup or cleanup?
+        ↓
+before_agent / after_agent
+
+Need retry?
+        ↓
+wrap_model_call
+
+Need dynamic model?
+        ↓
+wrap_model_call
+
+Need dynamic tools?
+        ↓
+wrap_model_call
+
+Need tool monitoring?
+        ↓
+wrap_tool_call
+
+Need persistent custom state?
+        ↓
+AgentMiddleware class
+```
+
+---
+
+## Execution Order
+
+```text
+BEFORE
+1 → 2 → 3
+
+WRAP
+1 → 2 → 3 → MODEL → 3 → 2 → 1
+
+AFTER
+3 → 2 → 1
+```
+
+---
+
+## Decorator vs Class
+
+```text
+Decorator
+    ↓
+Simple
+Single Hook
+Quick Prototype
+
+Class
+    ↓
+Complex
+Multiple Hooks
+State
+Configuration
+Reusable
+Production
+```
+
+---
+
+# 🔗 Resources
+
+### LangChain Custom Middleware Documentation
+
+[https://docs.langchain.com/oss/python/langchain/middleware](https://docs.langchain.com/oss/python/langchain/middleware)
+
+### LangChain Documentation Index
+
+[https://docs.langchain.com/llms.txt](https://docs.langchain.com/llms.txt)
+
+### Class 14 Colab Notebook
+
+[https://colab.research.google.com/drive/1CpnGhWhGG4r8NCIoh0WEmcPEVb6KJ2TH?usp=sharing](https://colab.research.google.com/drive/1CpnGhWhGG4r8NCIoh0WEmcPEVb6KJ2TH?usp=sharing)
+
+---
+
+# 🚀 Key Takeaway
+
+> **Middleware is the control layer between your agent's reasoning and its execution.**
+
+The LLM provides intelligence.
+
+Tools provide capabilities.
+
+Middleware provides **control, safety, customization, observability, and business-specific behavior**.
+
+A useful mental model is:
+
+```text
+                 ┌──────────────────┐
+                 │       USER       │
+                 └────────┬─────────┘
+                          │
+                          ▼
+                 ┌──────────────────┐
+                 │      AGENT       │
+                 └────────┬─────────┘
+                          │
+              ┌───────────▼───────────┐
+              │      MIDDLEWARE       │
+              │                       │
+              │ Validation            │
+              │ Security              │
+              │ PII                   │
+              │ Logging               │
+              │ Model Routing         │
+              │ Tool Selection        │
+              │ Retry / Fallback      │
+              │ State Management      │
+              └───────────┬───────────┘
+                          │
+             ┌────────────┴────────────┐
+             ▼                         ▼
+       ┌───────────┐             ┌───────────┐
+       │   MODEL   │             │   TOOLS   │
+       └───────────┘             └───────────┘
+             │                         │
+             └────────────┬────────────┘
+                          ▼
+                   EXECUTION RESULT
+```
+
+---
+
+## 🎯 Class 14 in One Sentence
+
+**Shell tools give agents real-world execution capabilities, while custom middleware gives developers precise control over how those agents reason, call models, use tools, manage state, enforce policies, and behave in production.**

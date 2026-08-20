@@ -1,17 +1,41 @@
-# LangChain Middleware — Consolidated Notes
+# 🛡️ LangChain Middleware & Guardrails — Complete Reference
 
-**Course:** Agentic AI 3.0 Specialization | Krish Naik Academy
-**Mentor:** Mayank Aggarwal
-**Sessions covered:** Class 12 ("Mastering Middleware: Control, Guardrails & Human-in-the-Loop") + Class 13 built-in middleware reference
-**Notebook:** https://colab.research.google.com/drive/1Qt9uU2HhDvtFTWwbbFBYxK86jJypv1w_?usp=sharing
-
-> This version merges the two source documents, removes duplicated explanations/code blocks, and fills in the built-in middleware types that were only present in one of the two sources.
+**Author:** Pragati  
+**Course:** Agentic AI Specialization   
+**Date:** 9 August 2026
 
 ---
 
-## 1. Why Middleware Exists
+## 📋 Table of Contents
+1. [Why Middleware Exists](#-why-middleware-exists)
+2. [Built-in Middleware Reference](#-built-in-middleware-reference)
+   - [Summarization](#21-summarization-middleware)
+   - [Human-in-the-Loop (HITL)](#22-human-in-the-loop-hitl-middleware)
+   - [Model Call Limit](#23-model-call-limit-middleware)
+   - [Tool Call Limit](#24-tool-call-limit-middleware)
+   - [Model Fallback](#25-model-fallback-middleware)
+   - [PII Detection](#26-pii-personally-identifiable-information-middleware)
+   - [Todo List](#27-todo-list-middleware)
+   - [LLM Tool Selector](#28-llm-tool-selector-middleware)
+   - [Tool Error](#29-tool-error-middleware)
+   - [Tool Retry](#210-tool-retry-middleware)
+   - [LLM Tool Emulator](#211-llm-tool-emulator-middleware)
+3. [Custom Guardrails](#-custom-guardrails)
+4. [Middleware vs. Guardrails](#-guardrail-vs-middleware)
+5. [Middleware Ordering](#-middleware-ordering)
+6. [Real-World Applications](#-real-world-applications)
+7. [Live Q&A Highlights](#-live-qa-highlights)
+8. [Action Items](#-action-items)
 
-Middleware lets you intercept and modify agent execution at defined points instead of hoping the model behaves correctly on its own. Motivating example: nothing stops an agent from replying rudely if provoked, and nothing automatically flags personal information handed to it — the agent already has everything it needs (model, tools, prompts, messages), but developers still need a way to intervene *between* those components.
+---
+
+## 🎯 Why Middleware Exists
+
+**Analogy:** Think of middleware as the security checkpoint at an airport. Before you board the plane (the agent does something), your luggage is screened, your ID is checked, and certain actions are approved or blocked. Just like an airport has multiple checkpoints (baggage screening, passport control, security scan), middleware gives you multiple places to intercept and control an agent's behavior.
+
+Middleware lets you intercept and modify agent execution at defined points instead of hoping the model behaves correctly on its own. 
+
+**The problem it solves:** Nothing stops an agent from replying rudely if provoked, and nothing automatically flags personal information handed to it. The agent already has everything it needs (model, tools, prompts, messages), but developers still need a way to intervene *between* those components.
 
 **Six hook points around the agent loop:**
 1. Before the agent runs
@@ -21,16 +45,17 @@ Middleware lets you intercept and modify agent execution at defined points inste
 5. Before a tool is called
 6. After a tool is called
 
-This concept isn't LangChain-specific — Google's Agent Development Kit calls the same idea a "callback." It maps to something every developer already does in regular code: deciding what happens before/after a given action. Middleware just applies that pattern formally to an agent's execution flow.
-
-**Reliability note (from Q&A):** telling a model "don't call this tool more than twice" in a prompt is not reliable — models can ignore it, and it breaks if you swap models. Enforcing limits in code (via middleware) is deterministic in a way prompt instructions never are.
+This concept isn't framework-specific — it's the same pattern developers already use in regular code: deciding what happens before/after a given action. Middleware just applies that pattern formally to an agent's execution flow.
 
 ---
 
-## 2. Built-in Middleware Reference
+## 🛠️ Built-in Middleware Reference
 
 ### 2.1 Summarization Middleware
+
 **Purpose:** Compress conversation history to manage token usage/cost as a conversation grows.
+
+**Analogy:** Think of this like taking meeting notes. After a 2-hour meeting, you don't need every word — you need a summary. Similarly, as a conversation gets long, older messages get condensed into a summary to save tokens and keep the agent focused on recent context.
 
 ```python
 from langchain.agents import create_agent
@@ -41,27 +66,32 @@ agent = create_agent(
     tools=[...],
     middleware=[
         SummarizationMiddleware(
-            model="anthropic:claude-haiku",   # can be a cheaper model — summarizing is its own task
-            trigger=("tokens", 4000),          # or message count, or % of context window (e.g. 80% full)
-            keep=("messages", 10),             # fraction, token count, or message count to leave untouched
+            model="anthropic:claude-haiku",   # Can be a cheaper model — summarizing is its own task
+            trigger=("tokens", 4000),          # Triggers at 4000 tokens
+            keep=("messages", 10),             # Keep last 10 messages untouched
         )
     ],
 )
 ```
 
 **Key points:**
-- `model` — doesn't need to match the main agent model; a cheaper model works fine.
-- `trigger` — absolute token count, message count, or fraction of the model's context window.
-- `keep` — how much recent conversation stays untouched (multimodal content included) after older messages are folded into a summary.
-- Runs against its **own separate context**, not the agent's main running context.
-- Does **not** downsample images/audio — store media separately and reference by URL.
-- This is the same mechanism behind Claude Code's `/compact` and the "conversation has been compacted" behavior in long chats.
-- **Trade-off:** summarization can genuinely lose information, which is part of why long conversations sometimes "forget" things or hallucinate. There's no guaranteed zero-loss summary — if something must be retained exactly, save it to long-term memory separately rather than relying on the summary.
+- `model` — doesn't need to match the main agent model; a cheaper model works fine
+- `trigger` — absolute token count, message count, or fraction of the model's context window
+- `keep` — how much recent conversation stays untouched after older messages are folded into a summary
+- Runs against its **own separate context**, not the agent's main running context
+- Does **not** downsample images/audio — store media separately and reference by URL
+
+**Trade-off:** Summarization can genuinely lose information — that's why long conversations sometimes "forget" things. If something must be retained exactly, save it to long-term memory separately.
+
+---
 
 ### 2.2 Human-in-the-Loop (HITL) Middleware
+
 **Purpose:** Pause execution so a human can approve, edit, reject, or respond to a proposed tool call before it runs.
 
-**Why it only applies to tool calls:** everything before a tool call is just the model reasoning; the tool call is the "hands" — the moment the agent actually changes something in the real world. That's the point worth pausing on.
+**Analogy:** Imagine you're a manager and your assistant drafts an important email. Before sending it, you review it, make edits, approve it, or reject it. HITL middleware gives you that same review power over your agent's actions.
+
+**Why it only applies to tool calls:** Everything before a tool call is just the model reasoning; the tool call is the "hands" — the moment the agent actually changes something in the real world. That's the point worth pausing on.
 
 ```python
 from langchain.agents.middleware import HumanInTheLoopMiddleware
@@ -91,18 +121,23 @@ result = agent.invoke(
 
 # Resume later with a decision, using the SAME thread_id:
 result = agent.invoke(Command(resume={"decisions": [{"type": "approve"}]}), config=config)
-# or
-result = agent.invoke(Command(resume={"decisions": [{"type": "reject", "message": "Not authorized"}]}), config=config)
 ```
 
-**Decision types:** `approve` (run as proposed) · `edit` (modify args first) · `reject` (block, send reason to agent) · `respond` (answer instead of executing).
+**Decision types:**
+- `approve` — run as proposed
+- `edit` — modify arguments first
+- `reject` — block, send reason to agent
+- `respond` — answer instead of executing
 
-LangChain doesn't ship a UI for resolving interrupts — resume programmatically via `Command(resume=...)` or wire it into a custom approve/reject interface.
+**Common mix-up:** A support chatbot escalating to a human agent is **not** HITL — that's a *transfer*, where the agent hands off the whole conversation and steps out. True HITL keeps the agent in the loop, just paused for one decision.
 
-**Common mix-up:** a support chatbot escalating to a human agent is **not** HITL — that's a *transfer*, where the agent hands off the whole conversation and steps out. True HITL keeps the agent in the loop, just paused for one decision (e.g., agent proposes a refund amount, human approves/adjusts it, agent continues).
+---
 
 ### 2.3 Model Call Limit Middleware
-**Purpose:** Cap total model calls to control cost and prevent infinite loops. (Same idea as a raw-Python `max_turns` safeguard, formalized with framework-level checks.)
+
+**Purpose:** Cap total model calls to control cost and prevent infinite loops.
+
+**Analogy:** Think of this like a data plan on your phone. You have a limited number of API calls you can make before you exceed your budget. This middleware is like setting a monthly data cap to prevent surprise bills.
 
 ```python
 from langchain.agents.middleware import ModelCallLimitMiddleware
@@ -121,8 +156,13 @@ agent = create_agent(
 )
 ```
 
+---
+
 ### 2.4 Tool Call Limit Middleware
-**Purpose:** Cap tool execution, especially irreversible operations — e.g. an email-search agent could otherwise dig through years of messages unbounded, and every extra tool call adds cost and context.
+
+**Purpose:** Cap tool execution, especially irreversible operations.
+
+**Analogy:** Imagine you're at an all-you-can-eat buffet. The run limit is like "you can only take 2 plates per trip to the buffet," while the thread limit is "you can only eat 10 plates total for the entire meal." This prevents a single user from getting too many tool calls.
 
 ```python
 from langchain.agents.middleware import ToolCallLimitMiddleware
@@ -142,10 +182,19 @@ agent = create_agent(
 )
 ```
 
-**Setting the right number:** this comes from domain knowledge, not a framework default — e.g. a web-search agent rarely needs more than 5–15 searches per task. The developer who understands the business use case should set it, rather than leaving it unbounded or guessing arbitrarily high.
+**Run Limit vs. Thread Limit (The Meal Analogy):**
+- **Run limit:** Like how many chapatis you can eat in one sitting (a single conversation turn)
+- **Thread limit:** Like how many chapatis you can eat across the entire day (multiple turns in the same conversation)
+
+**Setting the right number:** This comes from domain knowledge, not a framework default — e.g., a web-search agent rarely needs more than 5–15 searches per task.
+
+---
 
 ### 2.5 Model Fallback Middleware
-**Purpose:** Graceful degradation if the primary model provider fails (outage, expired key, hard error) — the app shouldn't simply stop working.
+
+**Purpose:** Graceful degradation if the primary model provider fails.
+
+**Analogy:** Think of this like having a backup generator for your house. When the main power fails, the backup kicks in automatically — your lights stay on, and you don't even notice the switch. This middleware is your AI's backup generator.
 
 ```python
 from langchain.agents.middleware import ModelFallbackMiddleware
@@ -163,30 +212,26 @@ agent = create_agent(
 # Chain tries each model in order; silently moves to the next on failure.
 ```
 
-**What it is not:** it does not route by speed or cost, and it is not a smart dispatcher picking the "best" model for a task — it only activates on genuine failure. The full prior conversation history is passed unchanged to whichever model ends up handling the request.
+**What it is not:** It does not route by speed or cost, and it is not a smart dispatcher picking the "best" model for a task — it only activates on genuine failure.
+
+---
 
 ### 2.6 PII (Personally Identifiable Information) Middleware
-**Purpose:** Detect and handle sensitive data before/after it reaches the model — a compliance requirement in healthcare, finance, etc. Data like DOB, phone number, email, government IDs, or passwords generally shouldn't reach the model if avoidable.
+
+**Purpose:** Detect and handle sensitive data before/after it reaches the model — a compliance requirement in healthcare, finance, etc.
+
+**Analogy:** Think of this like a redaction pen you'd use on legal documents. Before sharing a document, you black out sensitive information like social security numbers or addresses. This middleware does the same thing automatically for your AI conversations.
 
 **Built-in detectors:** email · credit card (Luhn-validated) · IP address · MAC address · URL
 
 **Strategies:**
-| Strategy | Behavior |
-|---|---|
-| `redact` | Replace with `[REDACTED_TYPE]` — value never reaches the model at all |
-| `mask` | Partially obscure (e.g. `****-****-****-1234`) — model can tell something is present without seeing the real value |
-| `hash` | Deterministic hashing |
-| `block` | Raise an exception |
 
-**Configuration options:**
-| Parameter | Description | Default |
+| Strategy | Behavior | Analogy |
 |---|---|---|
-| `pii_type` | Type of PII to detect (built-in or custom) | Required |
-| `strategy` | `"block"`, `"redact"`, `"mask"`, or `"hash"` | `"redact"` |
-| `detector` | Custom detector function or regex pattern | `None` (uses built-in) |
-| `apply_to_input` | Check user messages before model call | `True` |
-| `apply_to_output` | Check AI messages after model call | `False` |
-| `apply_to_tool_results` | Check tool result messages after execution | `False` |
+| `redact` | Replace with `[REDACTED_TYPE]` | Like covering a name with black marker |
+| `mask` | Partially obscure (e.g., `****-****-****-1234`) | Like showing only the last 4 digits of a credit card |
+| `hash` | Deterministic hashing | Like a secret code — the same input always produces the same output |
+| `block` | Raise an exception | Like a gate that stops you completely |
 
 ```python
 from langchain.agents.middleware import PIIMiddleware
@@ -203,7 +248,7 @@ agent = create_agent(
 # Sent to model: "Email: [REDACTED_EMAIL], Card: ****-****-****-1234"
 ```
 
-**Custom detectors** — needed because country-specific ID formats (Aadhaar, PAN, etc.) can't all ship as built-ins. Two equivalent approaches:
+**Custom detectors** — needed because country-specific ID formats can't all ship as built-ins:
 
 ```python
 # Regex pattern
@@ -211,7 +256,7 @@ import re
 aadhaar_pattern = re.compile(r"\b\d{12}\b")
 PIIMiddleware("aadhaar", detector=aadhaar_pattern, strategy="mask")
 
-# Custom function (for structured codes like booking references)
+# Custom function (for structured codes)
 def detect_booking_code(content: str) -> list[dict]:
     matches = []
     for match in re.finditer(r"BK\d{4}", content):
@@ -221,8 +266,13 @@ def detect_booking_code(content: str) -> list[dict]:
 PIIMiddleware("booking_code", detector=detect_booking_code, strategy="mask")
 ```
 
+---
+
 ### 2.7 Todo List Middleware
+
 **Purpose:** Break a complex user request into actionable steps automatically.
+
+**Analogy:** Think of this like a personal assistant who, when you say "I need to plan a party," creates a checklist: "1. Choose date, 2. Book venue, 3. Send invitations, 4. Order food." The assistant then checks off items as they're completed.
 
 ```python
 from langchain.agents.middleware import TodoListMiddleware
@@ -237,8 +287,15 @@ agent = create_agent(
 # → agent automatically breaks this into steps and executes them
 ```
 
+**Why not just prompt for it?** Plain instructions don't reliably produce a maintained, structured object the model keeps updating turn over turn. This middleware gives the agent a structured planning object that persists and updates across turns.
+
+---
+
 ### 2.8 LLM Tool Selector Middleware
-**Purpose:** Reduce context (and cost) by only sending the model the tools relevant to the current request; a cheaper model can do the selection.
+
+**Purpose:** Reduce context (and cost) by only sending the model the tools relevant to the current request.
+
+**Analogy:** Imagine a mechanic with 50 different tools in their toolbox. When a customer brings in a flat tire, the mechanic doesn't pull out all 50 tools — they only bring the ones needed for changing a tire. This middleware does the same filtering for your agent.
 
 ```python
 from langchain.agents.middleware import LLMToolSelectorMiddleware
@@ -258,8 +315,15 @@ agent = create_agent(
 # "Check showtimes" → sends only [check_showtimes], if sufficient
 ```
 
+**Under the hood:** This middleware uses structured output — it asks a (potentially cheaper) model which tools are actually relevant to the current query, and only forwards that filtered subset to the main model call.
+
+---
+
 ### 2.9 Tool Error Middleware
+
 **Purpose:** Convert raw tool exceptions into clean, model-facing messages instead of leaking internal details.
+
+**Analogy:** Think of this like a friendly waiter who, when the kitchen makes a mistake, tells you "I'm so sorry, your dish will be ready in 5 more minutes" instead of shouting "The chef burned the steak!" to the entire restaurant.
 
 ```python
 from langchain.agents.middleware import ToolErrorMiddleware
@@ -278,8 +342,15 @@ agent = create_agent(
 # Agent receives: "Invalid seat format. Please use format like 'A12'."
 ```
 
+**Key insight:** Tools are often third-party or shared, so you can't always change their internal definition — handling the failure gracefully at the middleware level is the more general solution.
+
+---
+
 ### 2.10 Tool Retry Middleware
+
 **Purpose:** Automatically retry transient tool failures (network blips, timeouts) with exponential backoff.
+
+**Analogy:** Imagine you're at a restaurant and the waiter tries to bring your food, but the door is temporarily blocked. They try again after 1 second, then 2 seconds, then 4 seconds. This middleware does the same thing for failed API calls.
 
 ```python
 from langchain.agents.middleware import ToolRetryMiddleware
@@ -298,8 +369,25 @@ agent = create_agent(
 )
 ```
 
+**The Backoff Math:**
+```
+delay = initial_delay × (backoff_factor ^ retry_number)
+```
+- Retry 0: 1 second
+- Retry 1: 2 seconds
+- Retry 2: 4 seconds
+
+**Why this matters:** If a service is briefly down, hammering it with instant retries doesn't help — waiting a little longer between attempts gives the underlying issue a real chance to resolve.
+
+**A Surprising Behavior:** With `max_retries=3` and `on_failure="continue"`, the middleware itself tries 4 times. But if all fail, the model sees the error and might independently decide to try again — triggering a second full cycle of attempts. This is the model's fuzzy, non-deterministic behavior, not a bug.
+
+---
+
 ### 2.11 LLM Tool Emulator Middleware
-**Purpose:** Simulate specific tool calls with an LLM instead of executing the real tool — useful for safe testing/dev environments and avoiding costly real API calls.
+
+**Purpose:** Simulate specific tool calls with an LLM instead of executing the real tool — useful for safe testing.
+
+**Analogy:** Think of this like using a flight simulator instead of actually flying a plane. You get the experience and can practice scenarios without the real risk or cost.
 
 ```python
 from langchain.agents.middleware import LLMToolEmulator
@@ -317,17 +405,21 @@ agent = create_agent(
 )
 ```
 
+**When to use:** Testing and development — validating an agent's overall logic without the cost, risk, or side effects of real external actions.
+
 ---
 
-## 3. Custom Guardrails
+## 🛡️ Custom Guardrails
 
-For validation logic beyond the built-ins, write custom middleware that hooks in **before** or **after** the agent runs. Both class-based and decorator syntax are supported and are equivalent.
+For validation logic beyond the built-ins, write custom middleware that hooks in **before** or **after** the agent runs.
 
-### 3.1 Before-Agent Guardrails (deterministic input filter)
-Runs once at the start of each invocation — good for auth checks, rate limiting, or blocking disallowed requests before any processing.
+### Before-Agent Guardrails (Deterministic Input Filter)
+
+Runs once at the start of each invocation — good for auth checks, rate limiting, or blocking disallowed requests.
+
+**Analogy:** Like a bouncer at a club checking IDs before letting anyone in.
 
 ```python
-# Class syntax
 from typing import Any
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langgraph.runtime import Runtime
@@ -365,8 +457,9 @@ agent = create_agent(
 )
 ```
 
+**Decorator Syntax (Equivalent):**
+
 ```python
-# Decorator syntax (equivalent)
 from langchain.agents.middleware import before_agent, AgentState, hook_config
 from langgraph.runtime import Runtime
 
@@ -391,11 +484,13 @@ def content_filter(state: AgentState, runtime: Runtime) -> dict | None:
 agent = create_agent(model=model, tools=[search_tool, calculator_tool], middleware=[content_filter])
 ```
 
-### 3.2 After-Agent Guardrails (model-based safety check)
-Runs once on the final response — good for LLM-judged safety checks, quality validation, or compliance scans on the complete answer.
+### After-Agent Guardrails (Model-Based Safety Check)
+
+Runs once on the final response — good for LLM-judged safety checks, quality validation, or compliance scans.
+
+**Analogy:** Like a quality control inspector checking products before they ship out.
 
 ```python
-# Class syntax
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langgraph.runtime import Runtime
 from langchain.messages import AIMessage
@@ -427,9 +522,8 @@ class SafetyGuardrailMiddleware(AgentMiddleware):
 agent = create_agent(model=model, tools=[search_tool, calculator_tool], middleware=[SafetyGuardrailMiddleware()])
 ```
 
-*(Decorator equivalent: `@after_agent(can_jump_to=["end"])` wrapping a plain function — same logic, no class needed.)*
+### Combining Multiple Guardrails
 
-### 3.3 Combining Multiple Guardrails
 Guardrails stack by adding them to the `middleware` list; they run in the order declared, building layered protection:
 
 ```python
@@ -448,87 +542,92 @@ agent = create_agent(
 
 ---
 
-## 4. Guardrail vs. Middleware
+## 🔑 Guardrail vs. Middleware
 
-Recurring point of confusion, resolved simply: **a guardrail is the concept** (the goal — protecting the agent from doing something undesirable). **Middleware is the mechanism** used to implement that goal. They are not two competing systems — guardrails need to be applied *as* middleware.
+**Analogy:** Think of guardrails as the *goal* (keeping the car on the road) and middleware as the *mechanism* (the actual metal barrier installed on the road). They aren't competing systems — guardrails need to be implemented *as* middleware.
 
-## 5. Middleware Ordering
+| Concept | Definition |
+|---|---|
+| **Guardrail** | The goal — protecting the agent from doing something undesirable |
+| **Middleware** | The mechanism — a specific way to achieve that goal |
 
-Multiple middlewares can be attached to a single agent without issue — no need for a separate agent per concern. They don't run in random order: either a defined priority applies, or they run in the order declared. Middlewares are generally written not to collide with each other (e.g., PII redaction should run before the model call).
+Even something as simple as a tool call limit already counts as a guardrail, since it's a deliberate constraint on behavior.
 
-## 6. LangChain vs. LangGraph
-
-Middleware as a concept exists in LangGraph too — it isn't unique to LangChain. LangGraph becomes worth reaching for when an application needs very precise, deterministic control internally — deeper control over checkpointers, stores, and interrupts than LangChain's abstractions expose by default. LangChain sits on top of LangGraph as a more convenient, somewhat abstracted interface to the same machinery.
-
-For most simple agents — even something like an enterprise RAG chatbot handling a handful of question types — LangChain with built-in middleware is generally sufficient; middleware might not even be strictly necessary for a straightforward RAG setup.
-
-**On frameworkless tools (Claude Code, Cursor):** these use MCP connections and plain instructions rather than LangChain, but are doing essentially the same thing under a different name — "hooks" instead of "middleware." The meaningful difference: agents built this way generally aren't deployable as standalone applications; they stay local, developer-facing tools rather than production services.
+**Where compliance comes from:** Compliance itself isn't defined by the framework — it's defined externally, by company policy, government regulation, or industry certification (HIPAA, GDPR, SOC 2, etc.).
 
 ---
 
-## 7. Real-World Applications
+## 📋 Middleware Ordering
 
-- **Fraud detection (fintech):** rate-limiting hooks around transaction tools
-- **Healthcare compliance:** PII middleware for HIPAA
-- **Customer support:** HITL approval before refunds/account changes
-- **Audit logging:** wrap tool calls to track who did what and when
-- **Cost management:** model fallback, tool selector, and tool emulator middleware
+Multiple middlewares can be attached to a single agent without issue — no need for a separate agent per concern.
 
-## 8. Key Principles
+**Analogy:** Like layers in a cake. Each layer adds something different, and the order matters — you don't put the frosting before the cake layers. Similarly, PII redaction should run before the model call, not after.
 
-1. **Checkpointer required** — HITL and persistent (`thread_limit`) limits need `InMemorySaver()` or another checkpoint store.
-2. **Stack multiple middlewares** — order matters (e.g., PII redaction before the model call).
-3. **Thread safety** — use `config={"configurable": {"thread_id": "unique_id"}}` for persistence across interrupts/resumes.
-4. **Graceful degradation** — prefer `exit_behavior="end"` for limits and `on_failure="continue"` for retries over hard exceptions, unless a hard stop is actually desired.
+- They don't run in random order: either a defined priority applies, or they run in the order declared
+- Middlewares are generally written not to collide with each other
+- Example: PII redaction should run before the model call
 
 ---
 
-## 9. Live Q&A Highlights
+## 🏢 Real-World Applications
+
+| Industry | Application | Middleware Used |
+|---|---|---|
+| **Fintech** | Fraud detection hooks | Rate-limiting middleware |
+| **Healthcare** | HIPAA compliance | PII middleware |
+| **Customer Support** | Refund approval gates | HITL middleware |
+| **Internal Tools** | Audit logging | Custom tool-call wrappers |
+| **E-commerce** | Cost management | Model fallback, tool selector |
+| **Development** | Safe testing | Tool emulator middleware |
+
+---
+
+## 💬 Live Q&A Highlights
 
 | Question | Answer |
 |---|---|
-| Why not just prompt "don't call the tool more than twice" instead of a limit middleware? | Unreliable — the model can ignore it, and it breaks if the model is swapped. Code-enforced limits are deterministic. |
-| Will middleware add latency? | Depends on type. Model-calling middleware (e.g. summarization) adds some latency; pure code-logic middleware (e.g. a call-limit check) has minimal overhead. |
-| Can I configure multiple HITL approval levels (e.g. two sign-offs)? | Not out of the box — requires custom middleware. |
-| Does model-calling middleware (e.g. summarization) share the agent's main context? | No — it runs against its own separate context. |
-| Is PII handled by guardrails or middleware? | Guardrail is the concept; middleware is the mechanism — not competing systems. |
-| Can multiple middlewares be attached to one agent? | Yes, passed in as a list, no issue. |
-| Do middlewares run in random order? | No — either a defined priority applies, or declaration order; they're designed not to collide. |
-| When LangChain + middleware vs. dropping to LangGraph? | LangChain + middleware suffices for most agents, including simple RAG. LangGraph is worth it when precise, deterministic control over state/checkpointing/interrupts is genuinely needed. |
-| What to use for observability (LangFuse, OpenTelemetry, etc.)? | No universal answer — depends on the app. LangFuse integrates easily with the LangChain family; for RAG specifically, test dedicated evaluation frameworks rather than assuming defaults are enough — early results are often deceptively easy. |
+| **What's the difference between Tool Error and Tool Retry middleware?** | Tool Error handles a failure gracefully once, converting it into a readable tool message without retrying. Tool Retry actively retries the failed call itself, with configurable backoff. |
+| **Why does a tool call limit produce a tool message instead of an interrupt?** | An interrupt exists to ask a human for a decision; a call-limit rejection needs no human input — it's simply refused and reported back as information. |
+| **Do always_include tools count against max_tools in the LLM Tool Selector?** | No — they're always sent and don't count against the limit. |
+| **If PII is hashed, can the agent still complete a real booking using that value?** | Not directly from the hash — a separate lookup step, outside the model's view, resolves the hash back to a real value only when a tool genuinely needs it. |
+| **Can onError support more than one handler function?** | No — a single function is expected, but it has full access to the exception, tool name, and request. |
+| **Is tool selection the same as dynamic tool loading from the earlier class?** | No — dynamic tool loading filters based on known state (e.g., user type); tool selection filters based on the current query's content. |
+| **Why did the flaky tool get called 8 times instead of 4 with max_retries=3?** | The middleware's own cycle accounts for 4 calls; the model, seeing the failure tool message, independently asked for the tool to be retried again — a consequence of the model's fuzzy, non-deterministic behavior, not a bug. |
+| **Why wrap tool errors as a tool message instead of just fixing the tool itself?** | Tools are often third-party or shared, so you can't always change their internal definition — handling the failure gracefully at the middleware level is the more general solution. |
+| **What's the difference between LangChain and LangGraph?** | LangChain sits on top of LangGraph as a more convenient, somewhat abstracted interface. LangGraph becomes worth reaching for when an application needs very precise, deterministic control internally — deeper control over checkpointers, stores, and interrupts. |
+| **Is PII handled by guardrails or middleware?** | Guardrail is the concept; middleware is the mechanism — not competing systems. |
 
 ---
 
-## 10. Action Items
+## ✅ Action Items
 
-- [ ] Recreate the `SummarizationMiddleware` example with your own `trigger`/`keep` values; watch it fire on a long conversation.
-- [ ] Build the `HumanInTheLoopMiddleware` send-email demo; resolve the interrupt both via `Command(resume=...)` and your own approve/reject logic.
-- [ ] Add a model call limit and a tool call limit to an existing agent; deliberately trigger both.
-- [ ] Set up `ModelFallbackMiddleware` and simulate a primary-model failure (e.g. an intentionally wrong API key) to confirm fallback fires.
-- [ ] Write one custom PII detector (`re`-based) for an ID format relevant to your own country/use case.
-- [ ] Be ready to explain, in your own words, the difference between a guardrail and middleware (recurring interview-style question).
-- [ ] Try `TodoListMiddleware`, `LLMToolSelectorMiddleware`, `ToolErrorMiddleware`, `ToolRetryMiddleware`, and `LLMToolEmulator` on a small test agent.
-- [ ] Write one `before_agent` and one `after_agent` custom guardrail from scratch.
-- [ ] Come back ready for custom middleware — building your own from scratch is the focus of the next class.
-
----
-
-## 11. Additional Resources
-
-- [Middleware documentation](/oss/python/langchain/middleware) — complete guide to custom middleware
-- [Middleware API reference](https://reference.langchain.com/python/langchain/middleware/)
-- [Human-in-the-loop guide](/oss/python/langchain/human-in-the-loop)
-- [Testing agents](/oss/python/langchain/test/) — strategies for testing safety mechanisms
+- [ ] **Summarization:** Recreate the `SummarizationMiddleware` example with your own `trigger`/`keep` values; watch it fire on a long conversation.
+- [ ] **HITL:** Build the `HumanInTheLoopMiddleware` send-email demo; resolve the interrupt both via `Command(resume=...)` and your own approve/reject logic.
+- [ ] **Limits:** Add a model call limit and a tool call limit to an existing agent; deliberately trigger both.
+- [ ] **Fallback:** Set up `ModelFallbackMiddleware` and simulate a primary-model failure to confirm fallback fires.
+- [ ] **PII:** Write one custom PII detector (`re`-based) for an ID format relevant to your own use case; try all four strategies (block, redact, mask, hash).
+- [ ] **Todo List:** Add `TodoListMiddleware` to an existing multi-tool agent and give it a genuinely multi-step request — watch the plan populate and update live.
+- [ ] **Tool Selector:** Build the `show_tools` custom middleware using `@wrap_model_call` yourself, and use it to verify `LLMToolSelectorMiddleware`'s filtering on at least three different queries.
+- [ ] **Tool Error:** Write a tool that deliberately raises a ValueError, then wrap it with `ToolErrorMiddleware` and confirm the agent no longer crashes.
+- [ ] **Tool Retry:** Set up `ToolRetryMiddleware` on a tool that always fails, and manually verify the backoff timing matches `initial_delay × (backoff_factor ^ retry_number)`.
+- [ ] **Tool Emulator:** Try `LLMToolEmulator` on a tool you don't want to actually call yet, and compare its fabricated response against what the real tool would return.
+- [ ] **Custom Guardrails:** Write one `before_agent` and one `after_agent` custom guardrail from scratch.
+- [ ] **Concept Review:** Be ready to explain, in your own words, the difference between a guardrail and middleware (recurring interview-style question).
 
 ---
 
-### What was removed as duplicate
-- Two near-identical `SummarizationMiddleware`, `HumanInTheLoopMiddleware`, `ModelCallLimitMiddleware`/`ToolCallLimitMiddleware`, `ModelFallbackMiddleware`, and `PIIMiddleware` code examples (one from each source doc) were merged into single canonical versions, keeping the more complete parameter set from each.
-- Repeated "guardrail vs. middleware" and "middleware ordering" explanations were consolidated into single sections (§4–5).
-- Duplicate mentions of checkpointer requirements were folded into Key Principles (§8).
+## 📚 Additional Resources
 
-### What was added (present in only one source, now included for completeness)
-- Todo List, LLM Tool Selector, Tool Error, Tool Retry, and LLM Tool Emulator middleware (§2.7–2.11) — these were missing from the narrative transcript but present in the reference doc.
-- The full custom guardrails section (§3) with `before_agent`/`after_agent` hooks, class and decorator syntax, and the combined-guardrails stacking example — present only in the reference doc.
-- The PII configuration options table and MAC address/URL detectors — present only in the reference doc.
-- The Q&A table and action items (§9–10) — present only in the transcript notes.
+- [Middleware Documentation](https://docs.langchain.com/oss/python/langchain/middleware) — Complete guide to custom middleware
+- [Middleware API Reference](https://reference.langchain.com/python/langchain/middleware/)
+- [Human-in-the-Loop Guide](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
+- [Testing Agents](https://docs.langchain.com/oss/python/langchain/test/) — Strategies for testing safety mechanisms
+
+---
+
+## 📝 Key Principles
+
+1. **Checkpointer required** — HITL and persistent (`thread_limit`) limits need `InMemorySaver()` or another checkpoint store
+2. **Stack multiple middlewares** — order matters (e.g., PII redaction before the model call)
+3. **Thread safety** — use `config={"configurable": {"thread_id": "unique_id"}}` for persistence across interrupts/resumes
+4. **Graceful degradation** — prefer `exit_behavior="end"` for limits and `on_failure="continue"` for retries over hard exceptions, unless a hard stop is actually desired

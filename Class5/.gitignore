@@ -1,4 +1,3 @@
-.shortnotes.py
 .env
 .venv
 __pycache__/
@@ -14,5 +13,4 @@ ENV/
 *.egg-info/
 dist/
 build/
-.ipynb_checkpoints/
-```
+

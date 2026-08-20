@@ -1,53 +1,32 @@
-"""Class8 short notes on models, memory, streaming, batching, and tool interactions.
+"""
+Class 7 quick notes
 
-Groq
------
-- Groq is an OpenRouter model designed for high-performance routing capabilities.
-- It is optimized for low latency and high throughput.
-- Suitable for applications that require fast and efficient data processing.
-- Groq's architecture handles complex routing tasks with minimal overhead.
+1. setup_check.ipynb
+   - Loads OPENAI_API_KEY from .env
+   - Creates a simple LangChain agent with create_agent()
+   - Uses a placeholder tool get_weather()
+   - Invokes the agent and prints the response content_blocks
 
-Parameters
-----------
-- model
-- api_key (optional)
-- temperature (controls randomness)
-- max_tokens
-- timeout
-- max_retries
+2. 04_05_prompt_templates_structured_output_student_notes.ipynb
+   - Part 4: Prompt templates
+     * Use ChatPromptTemplate.from_messages()
+     * Keep the prompt structure fixed
+     * Fill variables like {tone} and {topic}
+   - Part 5: Structured output
+     * Use Pydantic BaseModel for strict output shape
+     * Use with_structured_output(SupportTicket)
+     * ProviderStrategy uses provider JSON schema
+     * ToolStrategy uses a fake tool schema
 
-Short-term memory
------------------
-- system message
-- AI message
-- human message
-- tool message
+3. Important terminology
+   - LangGraph: low-level orchestration engine
+   - LangChain: create_agent harness built on LangGraph
+   - Deep Agents: batteries-included layer on top of create_agent
+   - LangSmith: observability / tracing, not just print statements
 
-Streaming
----------
-- Streaming delivers partial results as they arrive.
-- Defines chunks and a full message.
-- No installation is required when using streaming in supported SDKs.
-
-Batching
---------
-- Batching is the collection of messages sent in one request.
-- Helps reduce request overhead and improve throughput.
-
-Tools and messages
-------------------
-- Tools:
-  - response(name, args, id, type)
-- Model:
-  - tools calling
-  - structured output
-- Message:
-  - message(role, content, name, id, type)
-
-Roles
------
-- system
-- ai
-- user
-- tool
+4. Git notes
+   - .gitignore only stops new untracked files from being added
+   - If a file is already tracked, .gitignore does not make it private
+   - To stop tracking a committed file:
+     git rm --cached path/to/file
 """

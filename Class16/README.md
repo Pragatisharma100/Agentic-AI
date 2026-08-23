@@ -326,4 +326,3 @@ As of now, Claude's built-in Gmail connector can create and save a draft — it 
 
 ---
 
-*📝 Notes compiled from complete class transcripts and official documentation — "MCP, Properly Explained," Agentic AI Specialization.*

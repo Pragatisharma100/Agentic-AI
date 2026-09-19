@@ -1,7 +1,7 @@
 # 🐚 Class 14 — Shell Tools & Custom Middleware
 
 ## 📌 Overview
-
+16 AUG 2026
 Class 14 focuses on **Shell Tool Middleware** and **Custom Middleware** in LangChain agents.
 
 The session covers how AI agents can interact with real file systems and terminals, how middleware intercepts agent execution, the six major middleware hooks, decorator-based and class-based middleware, state management, execution order, dynamic model selection, dynamic tool selection, retries, tracing, and production-oriented middleware design.

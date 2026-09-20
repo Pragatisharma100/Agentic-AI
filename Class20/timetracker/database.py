@@ -1,13 +1,12 @@
-
 """
 TimeTrack's persistence layer -- SQLite, shared by the website and the MCP
 server, exactly like RecipeBox's was. One real, professional use case this
 time: logging billable hours against projects, and summarizing them.
 """
-import sqlite3
-from pathlib import Path
+# import sqlite3
+# from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "timetrack.db"
+# DB_PATH = Path(__file__).parent / "timetrack.db"
 
 
 def get_connection():
@@ -95,6 +94,11 @@ def get_timesheet(employee_name: str, start_date: str | None = None, end_date: s
     conn.close()
     return [_row_to_dict(r) for r in rows]
 
+def execute_query(query: str, params: list = []) -> list[dict]:
+    conn = get_connection()
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
 
 def list_projects() -> list[str]:
     conn = get_connection()
@@ -119,4 +123,3 @@ def get_project_summary(project: str) -> dict:
         "total_hours": sum(by_employee.values()),
         "by_employee": by_employee,
     }
-

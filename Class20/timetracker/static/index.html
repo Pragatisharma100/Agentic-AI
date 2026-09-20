@@ -2,59 +2,80 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TimeTrack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <div class="logo">TT</div>
-      <div>
-        <h1>TimeTrack</h1>
-        <p class="tagline">Time entries logged here, or by an AI assistant, land in the same place.</p>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#dashboard" aria-label="TimeTrack dashboard">
+        <span class="logo">T</span>
+        <span><strong>TimeTrack</strong><small>Work hours, clearly.</small></span>
+      </a>
+      <nav class="side-nav" aria-label="Main navigation">
+        <button class="nav-item active" data-view="dashboard"><span class="nav-icon">◈</span>Overview</button>
+        <button class="nav-item" data-view="entries"><span class="nav-icon">☷</span>Time entries</button>
+        <button class="nav-item" data-view="summary"><span class="nav-icon">▥</span>Projects</button>
+        <button class="nav-item" data-view="log"><span class="nav-icon">＋</span>Log time</button>
+      </nav>
+      <div class="sidebar-foot">
+        <span class="status-dot"></span><span>Live database</span>
       </div>
+    </aside>
+
+    <div class="content-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Workspace / Time intelligence</p>
+          <h1 id="pageTitle">Overview</h1>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button" id="themeToggle" title="Toggle light and dark mode" aria-label="Toggle light and dark mode">☾</button>
+          <button class="button button-primary" data-view="log"><span>＋</span> Log time</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="view-dashboard" class="view active">
+          <div class="welcome-row">
+            <div><h2>Good work starts with a clear picture.</h2><p id="todayLabel"></p></div>
+            <button class="button button-quiet" id="exportBtn">⇩ Export CSV</button>
+          </div>
+          <div class="stats-grid">
+            <article class="stat-card accent-card"><span class="stat-label">Total hours</span><strong id="totalHours">0h</strong><span class="stat-note" id="entryCount">0 entries</span></article>
+            <article class="stat-card"><span class="stat-label">This week</span><strong id="weekHours">0h</strong><span class="stat-note">Across all projects</span></article>
+            <article class="stat-card"><span class="stat-label">Active projects</span><strong id="projectCount">0</strong><span class="stat-note">With logged activity</span></article>
+            <article class="stat-card"><span class="stat-label">Team members</span><strong id="memberCount">0</strong><span class="stat-note">Contributing this period</span></article>
+          </div>
+          <div class="dashboard-grid">
+            <section class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">Where time goes</p><h3>Project breakdown</h3></div><span class="panel-badge" id="breakdownTotal">0h</span></div><div id="projectBars" class="project-bars"></div></section>
+            <section class="panel activity-panel"><div class="panel-heading"><div><p class="eyebrow">Latest movement</p><h3>Recent entries</h3></div><button class="text-button" data-view="entries">View all</button></div><div id="recentEntries" class="recent-list"></div></section>
+          </div>
+        </section>
+
+        <section id="view-entries" class="view">
+          <div class="section-heading"><div><p class="eyebrow">Your source of truth</p><h2>Time entries</h2></div><button class="button button-quiet" id="entriesExportBtn">⇩ Export CSV</button></div>
+          <div class="toolbar"><label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search people, projects, descriptions"></label><select id="employeeFilter"><option value="">All people</option></select><select id="projectFilter"><option value="">All projects</option></select><input id="dateFilter" type="date" title="Filter from date"></div>
+          <div class="panel table-wrap"><table id="entriesTable"><thead><tr><th>Date</th><th>Employee</th><th>Project</th><th>Hours</th><th>Description</th><th>Action</th></tr></thead><tbody></tbody></table><div id="emptyState" class="empty-state" hidden>No entries match these filters.</div></div>
+        </section>
+
+        <section id="view-summary" class="view">
+          <div class="section-heading"><div><p class="eyebrow">Capacity by project</p><h2>Project performance</h2></div></div>
+          <div class="project-layout"><div id="projectCards" class="project-cards"></div><div class="panel summary-detail" id="summaryResult"><div class="empty-state">Select a project to see its team breakdown.</div></div></div>
+        </section>
+
+        <section id="view-log" class="view">
+          <div class="section-heading"><div><p class="eyebrow">Add to the ledger</p><h2>Log time</h2><p>Capture the work while it is still fresh.</p></div></div>
+          <form id="logForm" class="panel log-form"><label>Employee name<input id="employeeInput" type="text" placeholder="e.g. Asha Patel" required></label><label>Project<input id="projectInput" type="text" list="projectList" placeholder="e.g. Website Redesign" required><datalist id="projectList"></datalist></label><label>Date<input id="dateInput" type="date" required></label><label>Hours<input id="hoursInput" type="number" min="0.25" step="0.25" placeholder="0.00" required></label><label class="wide-field">Description <span>optional</span><textarea id="descInput" rows="4" placeholder="What did you work on?"></textarea></label><div class="form-actions"><button class="button button-primary" type="submit">Save time entry <span>→</span></button><span class="form-hint">Saved entries are shared with your API and MCP assistant.</span></div></form>
+        </section>
+      </main>
     </div>
-  </header>
-
-  <nav class="tabs">
-    <button class="tab active" data-view="entries">All Entries</button>
-    <button class="tab" data-view="summary">Project Summary</button>
-    <button class="tab" data-view="log">Log Time</button>
-  </nav>
-
-  <main>
-    <section id="view-entries" class="view active">
-      <table id="entriesTable">
-        <thead>
-          <tr><th>Date</th><th>Employee</th><th>Project</th><th>Hours</th><th>Description</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section id="view-summary" class="view">
-      <div class="summary-controls">
-        <select id="projectSelect"></select>
-        <button id="loadSummaryBtn">Load Summary</button>
-      </div>
-      <div id="summaryResult"></div>
-    </section>
-
-    <section id="view-log" class="view">
-      <form id="logForm">
-        <input id="employeeInput" type="text" placeholder="Employee name" required>
-        <input id="projectInput" type="text" placeholder="Project" required>
-        <input id="dateInput" type="date" required>
-        <input id="hoursInput" type="number" step="0.25" placeholder="Hours" required>
-        <input id="descInput" type="text" placeholder="Description">
-        <button type="submit">Log Time</button>
-      </form>
-    </section>
-  </main>
-
-  <footer>
-    <p>Same database, two front doors -- this page, and any MCP-connected AI assistant.</p>
-  </footer>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
 
   <script src="/static/app.js"></script>
 </body>

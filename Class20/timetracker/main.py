@@ -15,7 +15,7 @@ Setup:
 Then visit http://127.0.0.1:8000 for the website,
 and http://127.0.0.1:8000/mcp is the MCP endpoint (Streamable HTTP).
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -102,6 +102,13 @@ class NewEntry(BaseModel):
 @app.get("/api/entries")
 def api_list_entries():
     return db.list_all_entries()
+
+
+@app.delete("/api/entries/{entry_id}")
+def api_delete_entry(entry_id: int):
+    if not db.delete_entry(entry_id):
+        raise HTTPException(status_code=404, detail="Time entry not found")
+    return {"deleted": True, "id": entry_id}
 
 
 @app.post("/api/entries")

@@ -11,4 +11,4 @@ dependencies = [
 ]
 
 [tool.vercel]
-entrypoint = "timetracker.Main_understand:app"
+entrypoint = "timetracker.main:app"

@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 
 
 
-import database as db
+from . import database as db
 from pydantic import BaseModel
 
 db.init_db() # Initialize the database and seed it with initial data if empty

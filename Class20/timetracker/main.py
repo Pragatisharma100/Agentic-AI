@@ -15,11 +15,13 @@ Setup:
 Then visit http://127.0.0.1:8000 for the website,
 and http://127.0.0.1:8000/mcp is the MCP endpoint (Streamable HTTP).
 """
+import asyncio
+
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from pathlib import Path
 
 from . import database as db
@@ -57,6 +59,14 @@ def get_project_summary(project: str) -> dict:
 def list_projects() -> list[str]:
     """List every project that has at least one logged time entry."""
     return db.list_projects()
+
+@mcp.tool
+async def slow_tool(ctx: Context) -> str:
+    """A five-second demo tool that reports progress to connected clients."""
+    for step in range(1, 6):
+        await asyncio.sleep(1)
+        await ctx.report_progress(step, 5, f"Completed step {step} of 5")
+    return "Slow tool completed successfully."
 
 
 @mcp.resource("timesheet://projects")
@@ -138,3 +148,7 @@ def serve_index():
 
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.mount("/mcp", mcp_app)
+
+
+if __name__ == "__main__":
+    mcp.run()

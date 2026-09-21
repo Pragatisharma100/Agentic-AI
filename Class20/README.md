@@ -354,4 +354,3 @@ Client creation and completing the live hosting are the two pieces explicitly le
 
 ---
 
-*📝 Notes compiled from complete class transcripts and personal notebooks — "Wrapping a Real API in MCP," Agentic AI Specialization.*

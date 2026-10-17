@@ -1,0 +1,47 @@
+
+
++-----------------------------------------------------------------------------+
+|                                                                             |
+|                                                                             |
+|                        \u2584\u2580\u2580 \u2584\u2580\u2588 \u2588\u2580\u2580 \u2580\u2588\u2580 \u2588\u2580\u2584\u2580\u2588 \u2588\u2580\u2580 \u2588\u2580\u2588                        |
+|                        \u2588\u2580  \u2588\u2580\u2588 \u2584\u2584\u2588  \u2588  \u2588 \u2580 \u2588 \u2588\u2584\u2584 \u2588\u2580\u2580                        |
+|                                                                             |
+|                                                                             |
+|                                FastMCP 4.1.0                                |
+|                            https://gofastmcp.com                            |
+|                                                                             |
+|                 \U0001f5a5  Server:      CineBot, 4.1.0                              |
+|                 \U0001f680 Deploy free: https://horizon.prefect.io                  |
+|                                                                             |
++-----------------------------------------------------------------------------+
+
+
+[10/13/26 10:33:26] INFO     Starting MCP server 'CineBot'     transport.py:241
+                             with transport 'stdio'                            
+[10/13/26 10:33:30] Error calling tool 'risky_lookup'                          
+                    +----------- Traceback (most recent call last) -----------+
+                    | c:\Users\pragg\anaconda3\Lib\site-packages\fastmcp\serv |
+                    | er\server.py:1467 in call_tool                          |
+                    |                                                         |
+                    | c:\Users\pragg\anaconda3\Lib\site-packages\fastmcp\tool |
+                    | s\base.py:440 in _run                                   |
+                    |                                                         |
+                    |                ... 10 frames hidden ...                 |
+                    |                                                         |
+                    | c:\Users\pragg\anaconda3\Lib\site-packages\fastmcp\tool |
+                    | s\function_tool.py:96 in wrapper                        |
+                    |                                                         |
+                    | E:\6\Projects\Agentic AI                                |
+                    | 3.0\Class24\cinebot_error_server.py:8 in risky_lookup   |
+                    |                                                         |
+                    |    5 def risky_lookup(booking_id: str) -> str:          |
+                    |    6     """Look up a booking -- fails if the ID format |
+                    |    7     if not booking_id.startswith("BK"):            |
+                    | >  8         raise ValueError(f"Invalid booking ID form |
+                    |      start with 'BK'.")                                 |
+                    |    9     return f"Booking {booking_id}: confirmed."     |
+                    |   10                                                    |
+                    |   11 if __name__ == "__main__":                         |
+                    +---------------------------------------------------------+
+                    ValueError: Invalid booking ID format: '12345'. Expected it
+                    to start with 'BK'.                                        
